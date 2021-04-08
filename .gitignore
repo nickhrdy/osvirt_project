@@ -1,0 +1,11 @@
+.vscode/**
+**/uefi_iso_image
+**/screenshots
+*.tar.gz
+*.o
+*.dll
+*.lib
+kernel
+user
+boot.iso
+boot.efi
