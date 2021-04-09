@@ -13,9 +13,10 @@ gcc -Wall -Wno-builtin-declaration-mismatch -O2 -mno-red-zone -nostdinc -fno-sta
 gcc -Wall -Wno-builtin-declaration-mismatch -O2 -mno-red-zone -nostdinc -fno-stack-protector -I ./kerninc -pie -fno-zero-initialized-in-bss -c kernel_syscall.c
 gcc -Wall -Wno-builtin-declaration-mismatch -O2 -mno-red-zone -nostdinc -fno-stack-protector -I ./kerninc -pie -fno-zero-initialized-in-bss -c printf.c
 gcc -Wall -Wno-builtin-declaration-mismatch -O2 -mno-red-zone -nostdinc -fno-stack-protector -I ./kerninc -pie -fno-zero-initialized-in-bss -c fb.c
+gcc -Wall -Wno-builtin-declaration-mismatch -O2 -mno-red-zone -nostdinc -fno-stack-protector -I ./kerninc -pie -fno-zero-initialized-in-bss -c allocator.c
 gcc -Wall -Wno-builtin-declaration-mismatch -O2 -mno-red-zone -nostdinc -fno-stack-protector -I ./kerninc -pie -fno-zero-initialized-in-bss -c ascii_font.c
 gcc -Wall -Wno-builtin-declaration-mismatch -O2 -mno-red-zone -nostdinc -fno-stack-protector -I ./kerninc -pie -fno-zero-initialized-in-bss -c page_table.c
-ld --oformat=binary -T ./kernel.lds -nostdlib -melf_x86_64 -pie kernel_entry.o apic.o kernel.o kernel_asm.o kernel_syscall.o printf.o fb.o ascii_font.o page_table.o -o kernel
+ld --oformat=binary -T ./kernel.lds -nostdlib -melf_x86_64 -pie kernel_entry.o apic.o kernel.o kernel_asm.o kernel_syscall.o printf.o fb.o allocator.o ascii_font.o page_table.o -o kernel
 
 # Comple the user application
 gcc -Wall -Wno-builtin-declaration-mismatch -O2 -mno-red-zone -nostdinc -fno-stack-protector -I ./userinc -pie -fno-zero-initialized-in-bss -c user_entry.S

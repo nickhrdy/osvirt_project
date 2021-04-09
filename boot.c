@@ -16,15 +16,29 @@ static EFI_HANDLE ImageHandle;
 static EFI_SYSTEM_TABLE *SystemTable;
 static EFI_BOOT_SERVICES *BootServices;
 
+typedef unsigned long long uint64_t;
+
+struct boot_info_t {
+    unsigned int* framebuffer;
+    uint64_t* user_buffer;
+    uint64_t kernel_code_size;
+    uint64_t user_code_size;
+    uint64_t* tss_buffer;
+    uint64_t* page_table_buffer;
+    void * memory_map;
+    uint64_t memory_map_size;
+    uint64_t memory_map_desc_size;
+};
+
 // Currently uses only EfiBootServicesData
 // The function can be extended to accept any type as necessary
 static VOID *AllocatePool(UINTN size, EFI_MEMORY_TYPE memType)
 {
     VOID *ptr;
     EFI_STATUS ret = BootServices->AllocatePool(memType, size, &ptr);
-    
+
     if (EFI_ERROR(ret)){
-        // Print debug message, then stall in case 
+        // Print debug message, then stall in case
         if(ret == EFI_OUT_OF_RESOURCES)
             SystemTable->ConOut->OutputString(SystemTable->ConOut,
                 L"ERROR: AllocatePool(): Out of Resources! \r\n");
@@ -104,7 +118,7 @@ static EFI_STATUS OpenKernel(EFI_FILE_PROTOCOL **pvh, EFI_FILE_PROTOCOL **pfh, E
         BootServices->Stall(3 * 1000000); // 5 seconds
         return efi_status;
     }
-    
+
     return EFI_SUCCESS;
 }
 
@@ -151,16 +165,13 @@ static UINT32 *SetGraphicsMode(UINT32 width, UINT32 height)
             && info->VerticalResolution == height){
             graphics->SetMode(graphics, mode);
             return (UINT32 *) graphics->Mode->FrameBufferBase;
-        } 
+        }
     }
     return NULL;
 }
 
 /* Use System V ABI rather than EFI/Microsoft ABI. */
-typedef void (*kernel_entry_t) (unsigned long long *, unsigned long long *, 
-    unsigned long long *, unsigned long long *,
-    unsigned int *, unsigned int) __attribute__((sysv_abi));
-typedef unsigned long long u64;
+typedef void (*kernel_entry_t) (unsigned long long *, struct boot_info_t*) __attribute__((sysv_abi));
 
 EFI_STATUS EFIAPI
 efi_main(EFI_HANDLE imageHandle, EFI_SYSTEM_TABLE *systemTable)
@@ -180,9 +191,10 @@ efi_main(EFI_HANDLE imageHandle, EFI_SYSTEM_TABLE *systemTable)
     }
 
     UINTN size = 4096 *  256;
+    UINTN kernel_size = 4096 *  256;
     EFI_PHYSICAL_ADDRESS kernel_buffer = 0; // kernel program code and stack
     EFI_PHYSICAL_ADDRESS user_buffer = 0; //user program code and stack
-    EFI_PHYSICAL_ADDRESS tss_buffer = 0; // tss segment and stack 
+    EFI_PHYSICAL_ADDRESS tss_buffer = 0; // tss segment and stack
 
     //allocate pages (1MB + 1 page for stack)
     efi_status = BootServices->AllocatePages(AllocateAnyPages, EfiRuntimeServicesData, 257, &user_buffer);
@@ -191,13 +203,13 @@ efi_main(EFI_HANDLE imageHandle, EFI_SYSTEM_TABLE *systemTable)
 
     if (EFI_ERROR(efi_status)) { //Check for errors
         if(efi_status == EFI_OUT_OF_RESOURCES)
-            SystemTable->ConOut->OutputString(SystemTable->ConOut, 
+            SystemTable->ConOut->OutputString(SystemTable->ConOut,
                 L"Error: AllocatePages(): Out of Resources! \r\n");
         else if(efi_status == EFI_INVALID_PARAMETER)
-            SystemTable->ConOut->OutputString(SystemTable->ConOut, 
+            SystemTable->ConOut->OutputString(SystemTable->ConOut,
                 L"Error: AllocatePages(): Invalid Parameter! \r\n");
         else if(efi_status == EFI_NOT_FOUND)
-            SystemTable->ConOut->OutputString(SystemTable->ConOut, 
+            SystemTable->ConOut->OutputString(SystemTable->ConOut,
                 L"Error: AllocatePages(): Not Found! \r\n");
         BootServices->Stall(3 * 1000000); // stall so I can read the errors
         return efi_status;
@@ -214,9 +226,9 @@ efi_main(EFI_HANDLE imageHandle, EFI_SYSTEM_TABLE *systemTable)
         SystemTable->ConOut->OutputString(SystemTable->ConOut, L"Error: efi_main(): kernel buffer allocation failed! \r\n");
         BootServices->Stall(3 * 1000000); // 5 seconds
     }
-    
+
     //read programs
-    efi_status = fh->Read(fh,&size, kernel_code_baseptr);
+    efi_status = fh->Read(fh,&kernel_size, kernel_code_baseptr);
      if(EFI_ERROR(efi_status)){
             if(efi_status == EFI_BUFFER_TOO_SMALL) {
                     SystemTable->ConOut->OutputString(SystemTable->ConOut, L"Error: GetMemoryMap(): Failed to retrieve map again! \r\n");
@@ -224,6 +236,10 @@ efi_main(EFI_HANDLE imageHandle, EFI_SYSTEM_TABLE *systemTable)
                     return efi_status;
                 }
         }
+
+
+
+
     size = 4096 *  256;
     efi_status = uh->Read(uh,&size, user_code_baseptr);
     if(EFI_ERROR(efi_status)){
@@ -244,28 +260,32 @@ efi_main(EFI_HANDLE imageHandle, EFI_SYSTEM_TABLE *systemTable)
 
     if (EFI_ERROR(efi_status)) { //Check for errors
         if(efi_status == EFI_OUT_OF_RESOURCES)
-            SystemTable->ConOut->OutputString(SystemTable->ConOut, 
+            SystemTable->ConOut->OutputString(SystemTable->ConOut,
                 L"Error: AllocatePages(): Out of Resources! \r\n");
         else if(efi_status == EFI_INVALID_PARAMETER)
-            SystemTable->ConOut->OutputString(SystemTable->ConOut, 
+            SystemTable->ConOut->OutputString(SystemTable->ConOut,
                 L"Error: AllocatePages(): Invalid Parameter! \r\n");
         else if(efi_status == EFI_NOT_FOUND)
-            SystemTable->ConOut->OutputString(SystemTable->ConOut, 
+            SystemTable->ConOut->OutputString(SystemTable->ConOut,
                 L"Error: AllocatePages(): Not Found! \r\n");
         BootServices->Stall(3 * 1000000); // stall so I can read the errors
-        return efi_status;	
+        return efi_status;
     }
-    
+
     // Cast pointer to allocated space
-    unsigned long long *base = (unsigned long long *) base_physical_addr;
-    unsigned long long *page_table_baseptr = base;
+    uint64_t *base = (unsigned long long *) base_physical_addr;
+    uint64_t *page_table_baseptr = base;
 
     UINTN memMapSize = 0;
     EFI_MEMORY_DESCRIPTOR* memoryMap = NULL;
     UINTN mapKey = 0;
     UINTN descriptorSize;
     UINT32 descriptorVersion;
-    
+    //fill boot info with what we can
+    struct boot_info_t boot_info = {(unsigned int*)fb, (uint64_t*)user_code_baseptr, (uint64_t) kernel_size, (uint64_t)size, (uint64_t*)tss_baseptr, (uint64_t*)page_table_baseptr};
+
+
+
     SystemTable->ConOut->OutputString(SystemTable->ConOut, L"Loading Clear! Exiting Boot Loader!! \r\n");
 
     while (1) {
@@ -292,8 +312,12 @@ efi_main(EFI_HANDLE imageHandle, EFI_SYSTEM_TABLE *systemTable)
                 BootServices->Stall(3 * 1000000); // stall so I can read the errors
                 //return efi_status;
             }
-            
+
         }
+
+        boot_info.memory_map = memoryMap;
+        boot_info.memory_map_size = memMapSize;
+        boot_info.memory_map_desc_size = descriptorSize;
 
         efi_status = BootServices->ExitBootServices(ImageHandle, mapKey);
         if (efi_status == EFI_SUCCESS) {
@@ -309,10 +333,12 @@ efi_main(EFI_HANDLE imageHandle, EFI_SYSTEM_TABLE *systemTable)
         FreePool(memoryMap);
     }
 
+
+
     // kernel's _start() is at base #0 (pure binary format)
     // cast the function pointer appropriately and call the function
     kernel_entry_t func = (kernel_entry_t) kernel_code_baseptr;
-    func(kernel_code_baseptr, user_code_baseptr, page_table_baseptr, tss_baseptr, fb, size);
+    func(kernel_code_baseptr, &boot_info);
 
     return EFI_SUCCESS;
 }

@@ -10,6 +10,28 @@
 #include<apic.h>
 #include<msr.h>
 #include<page_table.h>
+#include<allocator.h>
+
+static char* EFI_MEMORY_TYPE_STRINGS[] = {
+    "EfiReservedMemoryType",
+    "EfiLoaderCode",
+    "EfiLoaderData",
+    "EfiBootServicesCode",
+    "EfiBootServicesData",
+    "EfiRuntimeServicesCode",
+    "EfiRuntimeServicesData",
+    "EfiConventionalMemory",
+    "EfiUnusableMemory",
+    "EfiACPIReclaimMemory",
+    "EfiACPIMemoryNVS",
+    "EfiMemoryMappedIO",
+    "EfiMemoryMappedIOPortSpace",
+    "EfiPalCode"
+};
+
+char* memory_type_to_string(enum EFI_MEMORY_TYPES type){
+    return EFI_MEMORY_TYPE_STRINGS[type];
+}
 
 #define DEBUG 0
 
@@ -43,7 +65,7 @@ static void x86_fillgate(int num, void *fn, int ist)
 
 /* Fills the IDT table */
 static void create_idt_table(){
-    int i; 
+    int i;
     // fill with generic handler
     for(i = 0; i < 32; i++){
         x86_fillgate(i, generic_trap_hdl_ptr, 0);
@@ -65,12 +87,12 @@ void x86_trap_13(){
 }
 
 /* page fault handler */
-void x86_trap_14(uint64_t rsp_addr){ 
+void x86_trap_14(uint64_t rsp_addr){
     printf("\n[-] PAGE_FAULT (%%rsp == 0x%llx)\n", rsp_addr);
     set_pte(faulting_page, 0, (uint64_t)replacement_page >> 12, 1, 1);
     //Assume that the replacement page is the page after the user's pml
     write_cr3((uint64_t)(replacement_page - 512));
-}  
+}
 
 /* Create a page table for the user */
 uint64_t create_user_page_table(uint64_t* base, uint64_t* user_ptr, uint64_t size, uint64_t kernel_pdpe) {
@@ -126,7 +148,7 @@ void setup_interrupts(tss_segment_t* tss_ptr){
 
     // Create TSS segment
     tss_segment_t* tss = tss_ptr;
-    __builtin_memset(tss, 0, sizeof(tss_segment_t)); 
+    __builtin_memset(tss, 0, sizeof(tss_segment_t));
     tss->rsp[0] = (uint64_t) tss_ptr;
     tss->iopb_base = sizeof(tss_segment_t);
     load_tss_segment(0x28, tss);
@@ -141,45 +163,55 @@ void setup_tls(uint64_t* user_page_table_base, uint64_t* base){
 }
 
 
-/**
- *  kernel_ptr -> points region containing kernel code; also is the end of the kernel stack
- *  user_ptr -> points to region containing the user code; also is the end of the user stack
- *  page_table_ptr -> space for the page table (both kernel and user)
- *  tss_ptr -> points to region for tss; also is the end of the tss stack
- *  framebuffer -> reference to frame buffer
- *  size -> size of the user program in bytes
- */
-void kernel_start(uint64_t* kernel_ptr, uint64_t* user_ptr, uint64_t* page_table_ptr, 
-    uint64_t* tss_ptr, unsigned int* framebuffer, unsigned int size)
-{
+void print_memory_map_contents(boot_info_t* b_info){
+    uint64_t num_map_entries = b_info->memory_map_size / b_info->memory_map_desc_size;
+    for (int i = 0 ; i < num_map_entries; i++){
+        efi_memory_descriptor_t* desc = (efi_memory_descriptor_t*)((uint64_t)b_info->memory_map + (i * b_info->memory_map_desc_size));
+        printf("Entry %d, Size %llu pages, Type %d\n", i, desc->num_pages, desc->type);
+    }
+}
+
+
+void kernel_start(uint64_t* kernel_ptr, boot_info_t* b_info) {
     syscall_init(); //initialize system calls
-    fb_init(framebuffer, 800, 600);
+    fb_init(b_info->framebuffer, 800, 600);
+
+    print_memory_map_contents(b_info);
+
+    init_page_properties(b_info->memory_map, b_info->memory_map_size, b_info->memory_map_desc_size);
+    printf("Kernel code size: %d b // %d pg\n", b_info->kernel_code_size, b_info->kernel_code_size  / 4096 + 1);
+    int rc = alloc_pages(kernel_ptr, b_info->kernel_code_size / PAGESIZE + 1);
+    printf("Alloc_pages returned %d\n", rc);
+    print_allocator();
+
+
+    /* Never exit! */
+    printf("We made it to end of kernel!\n");
+    while (1) {};
+
 
     /* Create kernel page table */
-    create_kernel_page_table(page_table_ptr);
+    //create_kernel_page_table(b_info->page_table_buffer);
 
-    setup_interrupts((tss_segment_t*) tss_ptr);
-    x86_lapic_enable(); //initialize local apic controller
+    // setup_interrupts((tss_segment_t*) tss_ptr);
+    // x86_lapic_enable(); //initialize local apic controller
 
     // Now create user page table. The user page table will be in the
     // same buffer as the kernel page table so the offset can be used to our advantage
     // point base to be after kernel pages
-    uint64_t* base = page_table_ptr + (8413184 / 8);
-    uint64_t kernel_pml = (uint64_t)(page_table_ptr + 1050624);
-    uint64_t user_pml = create_user_page_table(base, user_ptr, size, kernel_pml);
+    // uint64_t* base = page_table_ptr + (8413184 / 8);
+    // uint64_t kernel_pml = (uint64_t)(page_table_ptr + 1050624);
+    // uint64_t user_pml = create_user_page_table(base, user_ptr, size, kernel_pml);
 
-    //Setup TLS for user
-    setup_tls(base, tss_ptr + 1024);
+    // //Setup TLS for user
+    // setup_tls(base, tss_ptr + 1024);
 
-    // find the address of the user stack and the user code. 
-    // they share the address becuase of how they are allocated and mapped.
-    uint64_t target_address = 0xFFFFFFFFC0001000;
+    // // find the address of the user stack and the user code.
+    // // they share the address becuase of how they are allocated and mapped.
+    // uint64_t target_address = 0xFFFFFFFFC0001000;
 
-    //switch page table and jump to user
-    write_cr3((uint64_t) user_pml);
-    user_stack = (void*)target_address;
-    user_jump((void*)target_address);
-
-    /* Never exit! */
-	while (1) {};
+    // //switch page table and jump to user
+    // write_cr3((uint64_t) user_pml);
+    // user_stack = (void*)target_address;
+    // user_jump((void*)target_address);
 }

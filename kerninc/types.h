@@ -18,7 +18,22 @@ typedef unsigned long long uintptr_t;
 
 #define NULL ((void *) 0)
 
-
+enum EFI_MEMORY_TYPES{
+    EFI_RESERVED_MEMORY_TYPE,
+    EFI_LOADER_CODE,
+    EFI_LOADER_DATA,
+    EFI_BOOT_SERVICES_CODE,
+    EFI_BOOT_SERVICES_DATA,
+    EFI_RUNTIME_SERVICES_CODE,
+    EFI_RUNTIME_SERVICES_DATA,
+    EFI_CONVENTIONAL_MEMORY,
+    EFI_UNUSABLE_MEMORY,
+    EFI_ACPI_RECLAIM_MEMORY,
+    EFI_ACPI_MEMORY_NVS,
+    EFI_MEMORY_MAPPED_IO,
+    EFI_MEMORY_MAPPED_IO_PORT_SPACE,
+    EFI_PAL_CODE
+};
 
 struct gate_descriptor {
     uint64_t gd_looffset:16;
@@ -33,13 +48,30 @@ struct gate_descriptor {
     uint64_t gd_zero:5;         /* must be zero */
     uint64_t gd_xx3:19;         /* reserved */
 }__attribute__((__packed__));
-
 typedef struct gate_descriptor gate_descriptor_t; /* IDT entry */
 
-struct tls_block 
+typedef struct tls_block
 {
     struct tls_block *myself;
     char padding[4096-8];
-};
+}tls_block_t;
 
-typedef struct tls_block tls_block_t;
+typedef struct EFI_MEMORY_DESCRIPTOR {
+    uint32_t type;
+    void *physical_addr;
+    void *virtual_addr;
+    uint64_t num_pages;
+    uint64_t attributes;
+} efi_memory_descriptor_t;
+
+typedef struct boot_info {
+    unsigned int *framebuffer;
+    uint64_t *user_buffer;
+    uint64_t kernel_code_size;
+    uint64_t user_code_size;
+    uint64_t *tss_buffer;
+    uint64_t *page_table_buffer;
+    efi_memory_descriptor_t *memory_map;
+    uint64_t memory_map_size;
+    uint64_t memory_map_desc_size;
+}boot_info_t;
