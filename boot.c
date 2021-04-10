@@ -254,27 +254,27 @@ efi_main(EFI_HANDLE imageHandle, EFI_SYSTEM_TABLE *systemTable)
 
     fb = SetGraphicsMode(800, 600);
 
-    // Allocate space for the page table.
-    EFI_PHYSICAL_ADDRESS base_physical_addr = 0;
-    efi_status = BootServices->AllocatePages(AllocateAnyPages, EfiRuntimeServicesData, 2064, &base_physical_addr);
+    // // Allocate space for the page table.
+    // EFI_PHYSICAL_ADDRESS base_physical_addr = 0;
+    // efi_status = BootServices->AllocatePages(AllocateAnyPages, EfiRuntimeServicesData, 2064, &base_physical_addr);
 
-    if (EFI_ERROR(efi_status)) { //Check for errors
-        if(efi_status == EFI_OUT_OF_RESOURCES)
-            SystemTable->ConOut->OutputString(SystemTable->ConOut,
-                L"Error: AllocatePages(): Out of Resources! \r\n");
-        else if(efi_status == EFI_INVALID_PARAMETER)
-            SystemTable->ConOut->OutputString(SystemTable->ConOut,
-                L"Error: AllocatePages(): Invalid Parameter! \r\n");
-        else if(efi_status == EFI_NOT_FOUND)
-            SystemTable->ConOut->OutputString(SystemTable->ConOut,
-                L"Error: AllocatePages(): Not Found! \r\n");
-        BootServices->Stall(3 * 1000000); // stall so I can read the errors
-        return efi_status;
-    }
+    // if (EFI_ERROR(efi_status)) { //Check for errors
+    //     if(efi_status == EFI_OUT_OF_RESOURCES)
+    //         SystemTable->ConOut->OutputString(SystemTable->ConOut,
+    //             L"Error: AllocatePages(): Out of Resources! \r\n");
+    //     else if(efi_status == EFI_INVALID_PARAMETER)
+    //         SystemTable->ConOut->OutputString(SystemTable->ConOut,
+    //             L"Error: AllocatePages(): Invalid Parameter! \r\n");
+    //     else if(efi_status == EFI_NOT_FOUND)
+    //         SystemTable->ConOut->OutputString(SystemTable->ConOut,
+    //             L"Error: AllocatePages(): Not Found! \r\n");
+    //     BootServices->Stall(3 * 1000000); // stall so I can read the errors
+    //     return efi_status;
+    // }
 
     // Cast pointer to allocated space
-    uint64_t *base = (unsigned long long *) base_physical_addr;
-    uint64_t *page_table_baseptr = base;
+    // uint64_t *base = (unsigned long long *) base_physical_addr;
+    uint64_t *page_table_baseptr = NULL;
 
     UINTN memMapSize = 0;
     EFI_MEMORY_DESCRIPTOR* memoryMap = NULL;
