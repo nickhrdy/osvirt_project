@@ -12,13 +12,13 @@ typedef unsigned short uint16_t;
 typedef unsigned int uint32_t;
 typedef unsigned long long uint64_t;
 
-#define SIZE_MAX	0xFFFFFFFFFFFFFFFFULL
+#define SIZE_MAX 0xFFFFFFFFFFFFFFFFULL
 typedef long long intptr_t;
 typedef unsigned long long uintptr_t;
 
-#define NULL ((void *) 0)
+#define NULL ((void *)0)
 
-enum EFI_MEMORY_TYPES{
+enum EFI_MEMORY_TYPES {
     EFI_RESERVED_MEMORY_TYPE,
     EFI_LOADER_CODE,
     EFI_LOADER_DATA,
@@ -36,25 +36,24 @@ enum EFI_MEMORY_TYPES{
 };
 
 struct gate_descriptor {
-    uint64_t gd_looffset:16;
-    uint64_t gd_selector:16;    /* gate segment selector */
-    uint64_t gd_ist:3;          /* IST select */
-    uint64_t gd_xx1:5;          /* reserved */
-    uint64_t gd_type:5;         /* segment type */
-    uint64_t gd_dpl:2;          /* segment descriptor priority level */
-    uint64_t gd_p:1;            /* segment descriptor present */
-    uint64_t gd_hioffset:48;    /* gate offset (msb) */
-    uint64_t gd_xx2:8;          /* reserved */
-    uint64_t gd_zero:5;         /* must be zero */
-    uint64_t gd_xx3:19;         /* reserved */
-}__attribute__((__packed__));
+    uint64_t gd_looffset : 16;
+    uint64_t gd_selector : 16; /* gate segment selector */
+    uint64_t gd_ist : 3;       /* IST select */
+    uint64_t gd_xx1 : 5;       /* reserved */
+    uint64_t gd_type : 5;      /* segment type */
+    uint64_t gd_dpl : 2;       /* segment descriptor priority level */
+    uint64_t gd_p : 1;         /* segment descriptor present */
+    uint64_t gd_hioffset : 48; /* gate offset (msb) */
+    uint64_t gd_xx2 : 8;       /* reserved */
+    uint64_t gd_zero : 5;      /* must be zero */
+    uint64_t gd_xx3 : 19;      /* reserved */
+} __attribute__((__packed__));
 typedef struct gate_descriptor gate_descriptor_t; /* IDT entry */
 
-typedef struct tls_block
-{
+typedef struct tls_block {
     struct tls_block *myself;
-    char padding[4096-8];
-}tls_block_t;
+    char padding[4096 - 8];
+} tls_block_t;
 
 typedef struct EFI_MEMORY_DESCRIPTOR {
     uint32_t type;
@@ -74,4 +73,4 @@ typedef struct boot_info {
     efi_memory_descriptor_t *memory_map;
     uint64_t memory_map_size;
     uint64_t memory_map_desc_size;
-}boot_info_t;
+} boot_info_t;

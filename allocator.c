@@ -7,7 +7,7 @@ static int __reserve_pages(void* addr, size_t num_pages);
 static int __unreserve_page(void*addr);
 static int __unreserve_pages(void* addr, size_t num_pages);
 
-page_properties_t* properties_ptr = NULL; // (nick) NOTE: extern this in other places?
+page_properties_t* properties_ptr = NULL;
 static int free_memory = 0;
 static int used_memory = 0;
 
@@ -110,7 +110,7 @@ int init_page_properties(efi_memory_descriptor_t* memory_map, uint64_t memory_ma
     //set sizes
     free_memory = get_memory_map_size(memory_map, memory_map_size, memory_map_desc_size);
     used_memory = 0;
-
+    __reserve_page(0);
     __reserve_pages(addr, properties_ptr->size * 8 / PAGESIZE + 1); //reserve bitmap
     reserve_special_segments(memory_map, memory_map_size, memory_map_desc_size);
     //allocate the pages used by bitmap
@@ -169,13 +169,18 @@ void* request_page(){
     return NULL;
 }
 
+void print_available_memory(){
+    printf("Currently Used: %d\n", used_memory);
+    printf("Currently Free: %d\n", free_memory);
+
+}
+
 void print_allocator(){
     uint64_t current_state = 0;
     uint64_t old_state = 0;
     uint64_t prev = 0;
     printf("Printing entire memory map...: %d \n", properties_ptr->size);
-    printf("Currently Used: %d\n", used_memory);
-    printf("Currently Free: %d\n", free_memory);
+    print_available_memory();
 
     for (uint64_t i = 0; i < properties_ptr->size; i++){
         old_state = current_state;
