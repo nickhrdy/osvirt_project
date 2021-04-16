@@ -11,6 +11,7 @@
 #include<msr.h>
 #include<page_table.h>
 #include<allocator.h>
+#include<halt.h>
 
 static char* EFI_MEMORY_TYPE_STRINGS[] = {
     "EfiReservedMemoryType",
@@ -171,15 +172,11 @@ void print_memory_map_contents(boot_info_t* b_info){
     }
 }
 
-void halt(){
-    while(1){};
-}
-
 void kernel_start(uint64_t* kernel_ptr, boot_info_t* b_info) {
     int rc;
     syscall_init(); //initialize system calls
     fb_init(b_info->framebuffer, 800, 600);
-
+    printf("Frame buffer: %p\n", b_info->framebuffer);
     print_memory_map_contents(b_info);
 
     init_page_properties(b_info->memory_map, b_info->memory_map_size, b_info->memory_map_desc_size);
@@ -193,17 +190,28 @@ void kernel_start(uint64_t* kernel_ptr, boot_info_t* b_info) {
     clear_page(kernel_pml);
     uint64_t size = get_memory_map_size(b_info->memory_map, b_info->memory_map_size, b_info->memory_map_desc_size);
     print_allocator();
-    
+
     printf("Kernel pml: %p\n", kernel_pml);
-    for(uint64_t i = 0; i < size; i += 0x1000){
+    for(uint64_t i = 0; i < size; i += PAGESIZE){
         if((rc = map_memory(kernel_pml, (void*)i, (void*)i))){
             printf("[!] Failed to map kernel table! Status(%d)\n", rc);
             halt();
         }
     }
+
+    /* Map framebuffer into memory */
+    for(uint64_t i  = (uint64_t)b_info->framebuffer; i < (uint64_t)b_info->framebuffer + (1 << 24); i += PAGESIZE){
+        if((rc = map_memory(kernel_pml, (void*)i, (void*)i))){
+            printf("[!] Failed to map framebuffer! Status(%d)\n", rc);
+            halt();
+        }
+    }
+
     //also map the framebuffer into the page table
     map_memory(kernel_pml, (void*)(b_info->framebuffer), (void*)(b_info->framebuffer));
-    //write_cr3((uint64_t)kernel_pml & ~0xFFF);
+    //debug_page_table(kernel_pml);
+    printf("Overwriting cr3\n");
+    write_cr3((uint64_t)kernel_pml & ~0xFFFULL);
 
     printf("We made it to end of kernel!\n");
     halt();

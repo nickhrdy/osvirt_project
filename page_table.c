@@ -4,18 +4,18 @@
 
 void set_pte(page_pte_t* pte_base, int n, uint64_t address, int present, int usermode){
     page_pte_t* pte = &(pte_base[n]);
-    pte->present = present; 
+    pte->present = present;
     pte->writable = 1;
-    pte->usermode = usermode; 
-    pte->pwt = 0; 
-    pte->pcd = 0; 
-    pte->accessed = 0; 
+    pte->usermode = usermode;
+    pte->pwt = 0;
+    pte->pcd = 0;
+    pte->accessed = 0;
     pte->dirty = 0;
-    pte->pat = 0; 
-    pte->global = 0; 
-    pte->avl = 0; 
+    pte->pat = 0;
+    pte->global = 0;
+    pte->avl = 0;
     pte->page_address = address;
-    pte->avail = 0; 
+    pte->avail = 0;
     pte->pke = 0;
     pte->nonexecute = 0;
 }
@@ -32,25 +32,25 @@ void set_pde(page_pde_t* pde_base, int n, uint64_t address, int present, int use
     pde->o = 0;
     pde->ign = 0;
     pde->avl = 0;
-    pde->page_address = address; 
+    pde->page_address = address;
     pde->avail = 0;
     pde->nonexecute = 0;
 }
 
 void set_pdpe(page_pdpe_t* pdpe_base, int n, uint64_t address, int present, int usermode){
     page_pdpe_t* pdpe = &(pdpe_base[n]);
-    pdpe->present = present; 
-    pdpe->writable = 1; 
+    pdpe->present = present;
+    pdpe->writable = 1;
     pdpe->usermode = usermode;
     pdpe->pwt = 0;
     pdpe->pcd = 0;
     pdpe->accessed = 0;
     pdpe->ign = 0;
     pdpe->o = 0;
-    pdpe->ign = 0; 
-    pdpe->avl = 0; 
-    pdpe->page_address = address; 
-    pdpe->avail = 0; 
+    pdpe->ign = 0;
+    pdpe->avl = 0;
+    pdpe->page_address = address;
+    pdpe->avail = 0;
     pdpe->nonexecute = 0;
 }
 
@@ -59,12 +59,12 @@ void set_pml(page_pml_t* pml_base, int n, uint64_t address, int present, int use
     pml->present = present;
     pml->writable = 1;
     pml->usermode = usermode;
-    pml->pwt = 0; 
+    pml->pwt = 0;
     pml->pcd = 0;
-    pml->accessed = 0; 
-    pml->ign = 0; 
+    pml->accessed = 0;
+    pml->ign = 0;
     pml->mbz = 0;
-    pml->avl = 0; 
+    pml->avl = 0;
     pml->page_address = address;
     pml->avail = 0;
     pml->nonexecute = 0;
@@ -120,7 +120,7 @@ int map_memory(page_pml_t* pml4, void* virtual_addr, void* physical_addr){
 }
 
 
-#if 0 //shut up warnings when we dont need this
+//shut up warnings when we dont need this
 void debug_page_table(void* pml_ptr){
     uint64_t i, j, k, l;
     page_pml_t* pml;
@@ -156,4 +156,3 @@ void debug_page_table(void* pml_ptr){
         }
     }
 }
-#endif

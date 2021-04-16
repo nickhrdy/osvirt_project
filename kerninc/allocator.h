@@ -3,6 +3,8 @@
 #define PAGESIZE 4096ULL
 #define PAGESHIFT 12ULL
 
+#include list.h
+
 /* page frame attributes */
 typedef struct page_info {
     uint8_t inuse : 1;
@@ -15,6 +17,8 @@ typedef struct page_properties {
     size_t size;
     page_info_t* info_buffer;
 } page_properties_t;
+
+
 
 /* information about all page frames */
 extern page_properties_t* properties_ptr;
