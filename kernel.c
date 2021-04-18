@@ -185,6 +185,8 @@ void kernel_start(uint64_t* kernel_ptr, boot_info_t* b_info) {
     printf("Alloc_pages returned %d\n", rc);
     alloc_page( (void*)((uint64_t)(b_info->framebuffer) & ~PAGESHIFT));
 
+    printf("Largest segment size: %d\n", get_largest_segment_size(b_info->memory_map, b_info->memory_map_size, b_info->memory_map_desc_size) / 1024);
+
     /* Create kernel page table */
     page_pml_t* kernel_pml = (page_pml_t*) request_page();
     clear_page(kernel_pml);

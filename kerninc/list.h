@@ -92,18 +92,18 @@
 #define false 0
 #define bool int
 /* List element. */
-struct list_elem
+typedef struct list_elem
   {
     struct list_elem *prev;     /* Previous list element. */
     struct list_elem *next;     /* Next list element. */
-  };
+  }list_elem_t;
 
 /* List. */
-struct list
+typedef struct list
   {
     struct list_elem head;      /* List head. */
     struct list_elem tail;      /* List tail. */
-  };
+  }list_t;
 
 /* Converts pointer to list element LIST_ELEM into a pointer to
    the structure that LIST_ELEM is embedded inside.  Supply the

@@ -3,7 +3,7 @@
 #define PAGESIZE 4096ULL
 #define PAGESHIFT 12ULL
 
-#include list.h
+#include <list.h>
 
 /* page frame attributes */
 typedef struct page_info {
@@ -18,10 +18,12 @@ typedef struct page_properties {
     page_info_t* info_buffer;
 } page_properties_t;
 
-
-
-/* information about all page frames */
-extern page_properties_t* properties_ptr;
+typedef struct buddy_block {
+    //start + size
+    uint64_t physical_addr; //physical addr of the start of this block
+    size_t size; //size of this buddy block in bytes; 0 when not in use
+    list_elem_t elem;
+} buddy_block_t;
 
 uint64_t get_memory_map_size(efi_memory_descriptor_t* memory_map,
                              uint64_t memory_map_size,
@@ -46,3 +48,4 @@ void clear_page(void* addr);
 void print_allocator();
 
 void print_available_memory();
+uint64_t get_largest_segment_size(efi_memory_descriptor_t* memory_map, uint64_t memory_map_size, uint64_t memory_map_desc_size);
