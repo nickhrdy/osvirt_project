@@ -49,3 +49,9 @@ void print_allocator();
 
 void print_available_memory();
 uint64_t get_largest_segment_size(efi_memory_descriptor_t* memory_map, uint64_t memory_map_size, uint64_t memory_map_desc_size);
+
+void* get_block(size_t num_pages);
+
+void free_block(void* addr);
+
+void debug_buddy_lists();

@@ -19,46 +19,182 @@ static size_t num_buddy_pages;
 
 static list_t buddy_lists[NUM_BUDDY_LISTS];
 
-static size_t pages_to_index(size_t num_pages){
+/**
+ * ####################
+ *  BUDDY FUNCTIONS
+ * ####################
+ * /
+
+
+/* Match number of pages to list index */
+static size_t pages_to_buddy_index(size_t num_pages){
     int i = 0;
     while(num_pages >> ++i);
     return i - 1;
 }
 
-
 /* Find the first free buddy then allocate him*/
 static buddy_block_t* __request_buddy(){
     uint64_t i;
 
-    for (i = 0; i < NUM_BUDDY_LISTS; i++) list_init(&buddy_lists[i]);
-
-    for (i = 0; i < num_buddy_pages / sizeof(buddy_block_t); i++){
-        if (buddy_pool[i].physical_addr) continue; //skip if in use
+    for (i = 0; i < num_buddy_pages * (PAGESIZE / sizeof(buddy_block_t)); i++){
+        if (buddy_pool[i].physical_addr != 0) continue; //skip if in use
         return (buddy_block_t*) (buddy_pool + i);
     }
     return NULL;
 }
 
-/* segment size in pages */
-static int init_buddy(void* addr, size_t segment_num_pages){
-    //add big chunk to list
-    buddy_block_t* bud;
-    if(!(bud= __request_buddy())){
-        printf("FUCK, WERE FUCKED\n");
-        halt();
+/* Find a buddy assigned to the corresponding physical address */
+static buddy_block_t* __find_buddy(void* physical_address){
+    uint64_t i;
+    uint64_t addr = (uint64_t)physical_address;
+
+    for (i = 0; i < num_buddy_pages / sizeof(buddy_block_t); i++){
+        if (buddy_pool[i].physical_addr == addr)
+            return (buddy_block_t*) (buddy_pool + i);
     }
+    return NULL;
+}
 
-    bud->physical_addr = (uint64_t)addr;
-    bud->size = segment_num_pages;
+/* Initialize buddy system with segment of memory */
+static int init_buddy(void* addr, size_t total_mem_num_pages){
+    uint64_t i;
+    size_t list_index;
+    buddy_block_t* blk;
+    size_t remaining_pages = total_mem_num_pages;
 
-    size_t page_index = pages_to_index(segment_num_pages);
-    list_insert(list_tail(&buddy_lists[page_index]), &bud->elem);
+    // init all lists
+    for (i = 0; i < NUM_BUDDY_LISTS; i++) list_init(&buddy_lists[i]);
 
+    // split chunk amongst lists
+    while(remaining_pages > 4){ // 4 is arbitrary
+
+        // place the inital memory block in the corresponding list
+        list_index = pages_to_buddy_index(remaining_pages);
+        if (remaining_pages < 1 << list_index){
+            // account for overshoot
+            list_index--;
+        }
+
+        // add big chunk to list
+        if(!(blk = __request_buddy())) 
+            HALT("[!] Failed to initialize buddy!\n");
+
+        // set attributes
+        blk->physical_addr = (uint64_t)addr;
+        blk->size = 1 << list_index;
+
+        // insert
+        list_insert(list_tail(&buddy_lists[list_index]), &blk->elem);
+
+        // update remaining pages and move address to match
+        remaining_pages -= 1 << list_index;
+        addr += (1 << list_index) / 8 * PAGESIZE;
+    }
 
     return 0;
 }
 
+/* Add a buddy block to the correct list */
+void __add_block(buddy_block_t* blk){
+    size_t list_index = pages_to_buddy_index(blk->size);
+    list_insert(list_tail(&buddy_lists[list_index]), &blk->elem);
+}
 
+/* Remove a buddy block from it's list */
+void __remove_block(buddy_block_t* blk){
+    list_remove(&blk->elem);
+}
+
+
+/* Get a memory block from the free blocks */
+void* get_block(size_t num_pages){
+    size_t i, j;
+    list_elem_t* elem;
+    buddy_block_t *blk, *buddy;
+
+    // find list index
+    size_t list_index = pages_to_buddy_index(num_pages);
+
+    // loop through lists trying to find a suitable block
+    for(i = list_index; i < NUM_BUDDY_LISTS; i++){
+
+        // ...if a block is available...
+        if(!list_empty(&buddy_lists[i])){
+            printf("[-] In buddy list %d\n", i);
+            // grab pointer to block
+            elem = list_front(&buddy_lists[i]);
+            blk = list_entry(elem, buddy_block_t, elem);
+
+            // split block until reaching an appropriate size
+            for(j = i-1; j >= list_index && j > 0; j--){
+                // try to request a new buddy struct before splitting
+                if(!(buddy = __request_buddy()))
+                    HALT("[!] Failed to get buddy struct from pool!\n");
+
+                // split area
+                buddy->physical_addr = blk->physical_addr + (blk->size * PAGESIZE / 2);
+                buddy->size = blk->size / 2;
+                blk->size = blk->size / 2;
+
+                //add new bud to list 
+                __add_block(buddy);
+            }
+
+            // remove block from list and return address
+            __remove_block(blk);
+            return (void*)blk->physical_addr;
+        }
+    }
+    return NULL; // didn't find suitable block
+}
+
+/* free an assigned block */
+void free_block(void* addr){
+    buddy_block_t *blk, *buddy, *temp;
+    uint64_t pair_addr;
+    list_elem_t* e;
+    // naive search for buddy that was mapped to this address
+    if( !(blk = __find_buddy(addr)))
+        HALT("[!] Failed to get buddy struct from pool!\n");
+
+    // add buddy to free list
+    __add_block(blk);
+
+    /* try to find block's buddy */
+    // TODO: Loop this merging process
+    size_t list_index = pages_to_buddy_index(blk->size);
+
+    if ((uint64_t)addr >> list_index & 1)
+        pair_addr = (uint64_t) addr - (1 << list_index);
+    else
+        pair_addr = (uint64_t) addr + (1 << list_index);
+
+    // search list for buddy
+    for(e  = list_begin(&buddy_lists[list_index]); e != list_end(&buddy_lists[list_index]); e = list_next(e)){
+        buddy = list_entry(e, buddy_block_t, elem);
+        if(buddy->physical_addr == pair_addr){
+            
+            // merge blocks together
+            if ((uint64_t)addr >> list_index & 1)
+                temp = buddy;
+            else
+                temp = blk;
+
+            __remove_block(buddy);
+            __remove_block(blk);
+
+            temp->size = temp->size * 2;
+            __add_block(temp);
+        }
+    }
+}
+
+/**
+ * ####################
+ *  END BUDDY FUNCTIONS
+ * ####################
+ * /
 
 /* Unreserve a page. Return 0 on success.*/
 static int __unreserve_page(void* addr){
@@ -177,10 +313,14 @@ int init_page_properties(efi_memory_descriptor_t* memory_map, uint64_t memory_ma
 
     size_t num_bitmap_pages = properties_ptr.size * 8 / PAGESIZE + 1;
     num_buddy_pages = largest / PAGESIZE * sizeof(buddy_block_t) / PAGESIZE + 1;
+    printf("Max num buddies: %d", largest / PAGESIZE );
     buddy_pool = (buddy_block_t*)(addr + (PAGESIZE * num_bitmap_pages));
     __reserve_pages(addr, num_bitmap_pages); //reserve bitmap
     __reserve_pages(buddy_pool, num_buddy_pages); //reserve buddypool
-    __builtin_memset((void*)buddy_pool, 0, PAGESIZE * num_buddy_pages); //zero out the buddy pool
+    for(int i = 0; i < num_buddy_pages; i++){
+        __builtin_memset((void*)buddy_pool + (PAGESIZE / 8 * i), 0, PAGESIZE); //commented line below get make angry
+        //__builtin_memset((void*)buddy_pool, 0, PAGESIZE * num_buddy_pages); //zero out the buddy pool
+    }
 
     //init buddy
     init_buddy((void*)((uint64_t)buddy_pool + PAGESIZE * num_buddy_pages), (largest / PAGESIZE) - num_bitmap_pages - num_buddy_pages);
@@ -241,7 +381,6 @@ void* request_page(){
 void print_available_memory(){
     printf("Currently Used: %d\n", used_memory);
     printf("Currently Free: %d\n", free_memory);
-
 }
 
 void print_allocator(){
@@ -280,5 +419,23 @@ void print_allocator(){
             prev = i * PAGESIZE;
         }
     }
+}
+
+void debug_buddy_lists(){
+    size_t i;
+    list_elem_t* e;
+    buddy_block_t *blk;
+
+    printf("[?] Debugging buddy list...\n");
+    for(i = 0; i < NUM_BUDDY_LISTS; i++){
+        if(!list_empty(&buddy_lists[i])){
+            printf("\tBuddy List #%d (size = %d)\n", i, 1 << i);
+            for(e = list_begin(&buddy_lists[i]); e != list_end(&buddy_lists[i]); e = list_next(e)){
+                blk = list_entry(e, buddy_block_t, elem);
+                printf("   buddy: %p -> size: %d, paddr: %p\n", blk, blk->size, (void*)blk->physical_addr);
+            }
+        }
+    }
+    printf("[?] End debugging buddy list\n");
 }
 

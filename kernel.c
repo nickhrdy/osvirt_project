@@ -180,43 +180,47 @@ void kernel_start(uint64_t* kernel_ptr, boot_info_t* b_info) {
     print_memory_map_contents(b_info);
 
     init_page_properties(b_info->memory_map, b_info->memory_map_size, b_info->memory_map_desc_size);
-    printf("Kernel code size: %d b // %d pg\n", b_info->kernel_code_size, b_info->kernel_code_size  / 4096 + 1);
-    rc = alloc_pages(kernel_ptr, b_info->kernel_code_size / PAGESIZE + 1);
-    printf("Alloc_pages returned %d\n", rc);
-    alloc_page( (void*)((uint64_t)(b_info->framebuffer) & ~PAGESHIFT));
 
-    printf("Largest segment size: %d\n", get_largest_segment_size(b_info->memory_map, b_info->memory_map_size, b_info->memory_map_desc_size) / 1024);
+    debug_buddy_lists();
 
-    /* Create kernel page table */
-    page_pml_t* kernel_pml = (page_pml_t*) request_page();
-    clear_page(kernel_pml);
-    uint64_t size = get_memory_map_size(b_info->memory_map, b_info->memory_map_size, b_info->memory_map_desc_size);
-    print_allocator();
+    // void* b = get_block(1);
+    // printf("block %p\n", b);
+    // debug_buddy_lists();
 
-    printf("Kernel pml: %p\n", kernel_pml);
-    for(uint64_t i = 0; i < size; i += PAGESIZE){
-        if((rc = map_memory(kernel_pml, (void*)i, (void*)i))){
-            printf("[!] Failed to map kernel table! Status(%d)\n", rc);
-            halt();
-        }
-    }
+    // printf("Kernel code size: %d b // %d pg\n", b_info->kernel_code_size, b_info->kernel_code_size  / 4096 + 1);
+    // rc = alloc_pages(kernel_ptr, b_info->kernel_code_size / PAGESIZE + 1);
+    // printf("Alloc_pages returned %d\n", rc);
+    // alloc_page( (void*)((uint64_t)(b_info->framebuffer) & ~PAGESHIFT));
 
-    /* Map framebuffer into memory */
-    for(uint64_t i  = (uint64_t)b_info->framebuffer; i < (uint64_t)b_info->framebuffer + (1 << 24); i += PAGESIZE){
-        if((rc = map_memory(kernel_pml, (void*)i, (void*)i))){
-            printf("[!] Failed to map framebuffer! Status(%d)\n", rc);
-            halt();
-        }
-    }
+    // printf("Largest segment size: %d\n", get_largest_segment_size(b_info->memory_map, b_info->memory_map_size, b_info->memory_map_desc_size) / 1024);
 
-    //also map the framebuffer into the page table
-    map_memory(kernel_pml, (void*)(b_info->framebuffer), (void*)(b_info->framebuffer));
+    // /* Create kernel page table */
+    // page_pml_t* kernel_pml = (page_pml_t*) request_page();
+    // clear_page(kernel_pml);
+    // uint64_t size = get_memory_map_size(b_info->memory_map, b_info->memory_map_size, b_info->memory_map_desc_size);
+    // print_allocator();
+
+    // printf("Kernel pml: %p\n", kernel_pml);
+    // for(uint64_t i = 0; i < size; i += PAGESIZE){
+    //     if((rc = map_memory(kernel_pml, (void*)i, (void*)i))){
+    //         printf("[!] Failed to map kernel table! Status(%d)\n", rc);
+    //         halt();
+    //     }
+    // }
+
+    // /* Map framebuffer into memory */
+    // for(uint64_t i  = (uint64_t)b_info->framebuffer; i < (uint64_t)b_info->framebuffer + (1 << 24); i += PAGESIZE){
+    //     if((rc = map_memory(kernel_pml, (void*)i, (void*)i))){
+    //         printf("[!] Failed to map framebuffer! Status(%d)\n", rc);
+    //         halt();
+    //     }
+    // }
+
     //debug_page_table(kernel_pml);
-    printf("Overwriting cr3\n");
-    write_cr3((uint64_t)kernel_pml & ~0xFFFULL);
+    // printf("Overwriting cr3\n");
+    // write_cr3((uint64_t)kernel_pml & ~0xFFFULL);
 
-    printf("We made it to end of kernel!\n");
-    halt();
+    HALT("We made it to end of kernel!\n");
 
     // setup_interrupts((tss_segment_t*) tss_ptr);
     // x86_lapic_enable(); //initialize local apic controller
