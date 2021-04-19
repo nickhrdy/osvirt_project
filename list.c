@@ -62,7 +62,7 @@ is_tail (struct list_elem *elem)
 void
 list_init (struct list *list)
 {
-  assert (list != NULL);
+  assert (list != NULL, "[!] ASSERT: list_init()");
   list->head.prev = NULL;
   list->head.next = &list->tail;
   list->tail.prev = &list->head;
@@ -73,7 +73,7 @@ list_init (struct list *list)
 struct list_elem *
 list_begin (struct list *list)
 {
-  assert (list != NULL);
+  assert (list != NULL, "[!] ASSERT: list_begin()");
   return list->head.next;
 }
 
@@ -83,7 +83,7 @@ list_begin (struct list *list)
 struct list_elem *
 list_next (struct list_elem *elem)
 {
-  assert (is_head (elem) || is_interior (elem));
+  assert (is_head (elem) || is_interior (elem), "[!] ASSERT: list_next()");
   return elem->next;
 }
 
@@ -95,7 +95,7 @@ list_next (struct list_elem *elem)
 struct list_elem *
 list_end (struct list *list)
 {
-  assert (list != NULL);
+  assert (list != NULL, "[!] ASSERT: list_end()");
   return &list->tail;
 }
 
@@ -104,7 +104,7 @@ list_end (struct list *list)
 struct list_elem *
 list_rbegin (struct list *list)
 {
-  assert (list != NULL);
+  assert (list != NULL, "[!] ASSERT: list_rbegin()");
   return list->tail.prev;
 }
 
@@ -114,7 +114,7 @@ list_rbegin (struct list *list)
 struct list_elem *
 list_prev (struct list_elem *elem)
 {
-  assert (is_interior (elem) || is_tail (elem));
+  assert (is_interior (elem) || is_tail (elem), "[!] ASSERT: list_prev()");
   return elem->prev;
 }
 
@@ -134,7 +134,7 @@ list_prev (struct list_elem *elem)
 struct list_elem *
 list_rend (struct list *list)
 {
-  assert (list != NULL);
+  assert (list != NULL, "[!] ASSERT: list_rend()");
   return &list->head;
 }
 
@@ -152,7 +152,7 @@ list_rend (struct list *list)
 struct list_elem *
 list_head (struct list *list)
 {
-  assert (list != NULL);
+  assert (list != NULL, "[!] ASSERT: list_head()");
   return &list->head;
 }
 
@@ -160,7 +160,7 @@ list_head (struct list *list)
 struct list_elem *
 list_tail (struct list *list)
 {
-  assert (list != NULL);
+  assert (list != NULL, "[!] ASSERT: list_tail()");
   return &list->tail;
 }
 
@@ -170,8 +170,8 @@ list_tail (struct list *list)
 void
 list_insert (struct list_elem *before, struct list_elem *elem)
 {
-  assert (is_interior (before) || is_tail (before));
-  assert (elem != NULL);
+  assert (is_interior (before) || is_tail (before), "[!] ASSERT: list_insert()");
+  assert (elem != NULL, "[!] ASSERT: list_insert(): elem == NULL");
 
   elem->prev = before->prev;
   elem->next = before;
@@ -186,13 +186,13 @@ void
 list_splice (struct list_elem *before,
              struct list_elem *first, struct list_elem *last)
 {
-  assert (is_interior (before) || is_tail (before));
+  assert (is_interior (before) || is_tail (before), "[!] ASSERT: list_splice() ");
   if (first == last)
     return;
   last = list_prev (last);
 
-  assert (is_interior (first));
-  assert (is_interior (last));
+  assert (is_interior (first), "[!] ASSERT: list_splice() first");
+  assert (is_interior (last), "[!] ASSERT: list_splice(): last");
 
   /* Cleanly remove FIRST...LAST from its current list. */
   first->prev->next = last->next;
@@ -258,7 +258,7 @@ list_push_back (struct list *list, struct list_elem *elem)
 struct list_elem *
 list_remove (struct list_elem *elem)
 {
-  assert (is_interior (elem));
+  assert (is_interior (elem), "[!] ASSERT: list_remove()");
   elem->prev->next = elem->next;
   elem->next->prev = elem->prev;
   return elem->next;
@@ -289,7 +289,7 @@ list_pop_back (struct list *list)
 struct list_elem *
 list_front (struct list *list)
 {
-  assert (!list_empty (list));
+  assert (!list_empty (list), "[!] ASSERT: list_front");
   return list->head.next;
 }
 
@@ -298,7 +298,7 @@ list_front (struct list *list)
 struct list_elem *
 list_back (struct list *list)
 {
-  assert (!list_empty (list));
+  assert (!list_empty (list), "[!] ASSERT: list_back");
   return list->tail.prev;
 }
 
@@ -368,10 +368,10 @@ static struct list_elem *
 find_end_of_run (struct list_elem *a, struct list_elem *b,
                  list_less_func *less, void *aux)
 {
-  assert (a != NULL);
-  assert (b != NULL);
-  assert (less != NULL);
-  assert (a != b);
+  assert (a != NULL, "[!] ASSERT: find_end_of_run(): a");
+  assert (b != NULL, "[!] ASSERT: find_end_of_run(): b");
+  assert (less != NULL, "[!] ASSERT: find_end_of_run(): less");
+  assert (a != b, "[!] ASSERT: find_end_of_run(): a != b");
 
   do
     {
@@ -391,12 +391,12 @@ inplace_merge (struct list_elem *a0, struct list_elem *a1b0,
                struct list_elem *b1,
                list_less_func *less, void *aux)
 {
-  assert (a0 != NULL);
-  assert (a1b0 != NULL);
-  assert (b1 != NULL);
-  assert (less != NULL);
-  assert (is_sorted (a0, a1b0, less, aux));
-  assert (is_sorted (a1b0, b1, less, aux));
+  assert (a0 != NULL, "[!] ASSERT: inplace_merge()");
+  assert (a1b0 != NULL, "[!] ASSERT: inplace_merge()");
+  assert (b1 != NULL, "[!] ASSERT: inplace_merge()");
+  assert (less != NULL, "[!] ASSERT: inplace_merge()");
+  assert (is_sorted (a0, a1b0, less, aux), "a");
+  assert (is_sorted (a1b0, b1, less, aux), "a");
 
   while (a0 != a1b0 && a1b0 != b1)
     if (!less (a1b0, a0, aux))
@@ -416,8 +416,8 @@ list_sort (struct list *list, list_less_func *less, void *aux)
 {
   size_t output_run_cnt;        /* Number of runs output in current pass. */
 
-  assert (list != NULL);
-  assert (less != NULL);
+  assert (list != NULL, "[!] ASSERT: list_sort()");
+  assert (less != NULL, "[!] ASSERT: list_sort()");
 
   /* Pass over the list repeatedly, merging adjacent runs of
      nondecreasing elements, until only one run is left. */
@@ -446,7 +446,7 @@ list_sort (struct list *list, list_less_func *less, void *aux)
     }
   while (output_run_cnt > 1);
 
-  assert (is_sorted (list_begin (list), list_end (list), less, aux));
+  assert (is_sorted (list_begin (list), list_end (list), less, aux), "a");
 }
 
 /* Inserts ELEM in the proper position in LIST, which must be
@@ -458,9 +458,9 @@ list_insert_ordered (struct list *list, struct list_elem *elem,
 {
   struct list_elem *e;
 
-  assert (list != NULL);
-  assert (elem != NULL);
-  assert (less != NULL);
+  assert (list != NULL, "[!] ASSERT: list_insert_ordered()");
+  assert (elem != NULL, "[!] ASSERT: list_insert_ordered()");
+  assert (less != NULL, "[!] ASSERT: list_insert_ordered()");
 
   for (e = list_begin (list); e != list_end (list); e = list_next (e))
     if (less (elem, e, aux))
@@ -478,8 +478,8 @@ list_unique (struct list *list, struct list *duplicates,
 {
   struct list_elem *elem, *next;
 
-  assert (list != NULL);
-  assert (less != NULL);
+  assert (list != NULL, "[!] ASSERT: list_unique()");
+  assert (less != NULL, "[!] ASSERT: list_unique()");
   if (list_empty (list))
     return;
 

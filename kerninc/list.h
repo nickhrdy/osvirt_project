@@ -87,10 +87,17 @@
 // #include <stdbool.h>
 // #include <stddef.h>
 #include <types.h>
-#define assert(ignore)((void) 0)
+#include <halt.h>
+
 #define true 1
 #define false 0
 #define bool int
+
+#define assert(EXPR, STRING) (!(EXPR) ? HALT(STRING) : 0)
+
+#define offsetof(st, m) \
+    __builtin_offsetof(st, m)
+
 /* List element. */
 typedef struct list_elem
   {
@@ -104,6 +111,8 @@ typedef struct list
     struct list_elem head;      /* List head. */
     struct list_elem tail;      /* List tail. */
   }list_t;
+
+
 
 /* Converts pointer to list element LIST_ELEM into a pointer to
    the structure that LIST_ELEM is embedded inside.  Supply the
