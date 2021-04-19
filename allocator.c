@@ -16,6 +16,7 @@ static buddy_block_t* buddy_pool;
 static int free_memory = 0;
 static int used_memory = 0;
 static size_t num_buddy_pages;
+static uint64_t offset;
 
 static list_t buddy_lists[NUM_BUDDY_LISTS];
 
@@ -23,7 +24,7 @@ static list_t buddy_lists[NUM_BUDDY_LISTS];
  * ####################
  *  BUDDY FUNCTIONS
  * ####################
- * /
+ */
 
 
 /* Match number of pages to list index */
@@ -62,12 +63,13 @@ static int init_buddy(void* addr, size_t total_mem_num_pages){
     size_t list_index;
     buddy_block_t* blk;
     size_t remaining_pages = total_mem_num_pages;
-
+    offset = (uint64_t)addr;
+    printf("[+] Buddy are mapping %d pages\n", total_mem_num_pages);
     // init all lists
     for (i = 0; i < NUM_BUDDY_LISTS; i++) list_init(&buddy_lists[i]);
 
     // split chunk amongst lists
-    while(remaining_pages > 4){ // 4 is arbitrary
+    //while(remaining_pages > 4){ // 4 is arbitrary
 
         // place the inital memory block in the corresponding list
         list_index = pages_to_buddy_index(remaining_pages);
@@ -90,7 +92,7 @@ static int init_buddy(void* addr, size_t total_mem_num_pages){
         // update remaining pages and move address to match
         remaining_pages -= 1 << list_index;
         addr += (1 << list_index) / 8 * PAGESIZE;
-    }
+    //}
 
     return 0;
 }
@@ -105,7 +107,6 @@ void __add_block(buddy_block_t* blk){
 void __remove_block(buddy_block_t* blk){
     list_remove(&blk->elem);
 }
-
 
 /* Get a memory block from the free blocks */
 void* get_block(size_t num_pages){
@@ -151,41 +152,41 @@ void* get_block(size_t num_pages){
 
 /* free an assigned block */
 void free_block(void* addr){
-    buddy_block_t *blk, *buddy, *temp;
+    buddy_block_t *blk = NULL, *buddy = NULL;
     uint64_t pair_addr;
     list_elem_t* e;
     // naive search for buddy that was mapped to this address
     if( !(blk = __find_buddy(addr)))
         HALT("[!] Failed to get buddy struct from pool!\n");
 
+    printf("Freeing block (paddr -> %p)\n", addr);
     // add buddy to free list
-    __add_block(blk);
 
     /* try to find block's buddy */
     // TODO: Loop this merging process
     size_t list_index = pages_to_buddy_index(blk->size);
-
-    if ((uint64_t)addr >> list_index & 1)
-        pair_addr = (uint64_t) addr - (1 << list_index);
-    else
-        pair_addr = (uint64_t) addr + (1 << list_index);
+    printf("[?] List index: %d\n", list_index);
+    pair_addr = ((((uint64_t) addr - offset) ^ (1 << (list_index + PAGESHIFT))) + offset);
+    printf("Buddy address is 0x%llx\n", pair_addr);
 
     // search list for buddy
     for(e  = list_begin(&buddy_lists[list_index]); e != list_end(&buddy_lists[list_index]); e = list_next(e)){
         buddy = list_entry(e, buddy_block_t, elem);
         if(buddy->physical_addr == pair_addr){
-            
-            // merge blocks together
-            if ((uint64_t)addr >> list_index & 1)
-                temp = buddy;
-            else
-                temp = blk;
-
-            __remove_block(buddy);
-            __remove_block(blk);
-
-            temp->size = temp->size * 2;
-            __add_block(temp);
+            break;
+        }
+    }
+    if(e == list_end(&buddy_lists[list_index])){
+        __add_block(blk);
+    } else {
+        __remove_block(buddy);
+        if(blk->physical_addr > buddy->physical_addr) {
+            buddy->size *= 2;
+            free_block((void*)buddy->physical_addr);
+        } 
+        else {
+            blk->size *= 2;
+            free_block((void*)blk->physical_addr);
         }
     }
 }
@@ -194,7 +195,7 @@ void free_block(void* addr){
  * ####################
  *  END BUDDY FUNCTIONS
  * ####################
- * /
+ */
 
 /* Unreserve a page. Return 0 on success.*/
 static int __unreserve_page(void* addr){
@@ -313,7 +314,8 @@ int init_page_properties(efi_memory_descriptor_t* memory_map, uint64_t memory_ma
 
     size_t num_bitmap_pages = properties_ptr.size * 8 / PAGESIZE + 1;
     num_buddy_pages = largest / PAGESIZE * sizeof(buddy_block_t) / PAGESIZE + 1;
-    printf("Max num buddies: %d", largest / PAGESIZE );
+    printf("Max num buddies: %d\n", largest / PAGESIZE );
+    printf("Num buddy pages: %d\n", num_buddy_pages);
     buddy_pool = (buddy_block_t*)(addr + (PAGESIZE * num_bitmap_pages));
     __reserve_pages(addr, num_bitmap_pages); //reserve bitmap
     __reserve_pages(buddy_pool, num_buddy_pages); //reserve buddypool
@@ -432,7 +434,7 @@ void debug_buddy_lists(){
             printf("\tBuddy List #%d (size = %d)\n", i, 1 << i);
             for(e = list_begin(&buddy_lists[i]); e != list_end(&buddy_lists[i]); e = list_next(e)){
                 blk = list_entry(e, buddy_block_t, elem);
-                printf("   buddy: %p -> size: %d, paddr: %p\n", blk, blk->size, (void*)blk->physical_addr);
+                printf("   buddy: %p -> size: 0x%llx, paddr: %p\n", blk, blk->size * PAGESIZE, (void*)blk->physical_addr);
             }
         }
     }

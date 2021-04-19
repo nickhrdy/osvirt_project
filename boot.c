@@ -252,7 +252,7 @@ efi_main(EFI_HANDLE imageHandle, EFI_SYSTEM_TABLE *systemTable)
 
     CloseKernel(vh, fh, uh);
 
-    fb = SetGraphicsMode(800, 600);
+    fb = SetGraphicsMode(1600, 900);
 
     // // Allocate space for the page table.
     // EFI_PHYSICAL_ADDRESS base_physical_addr = 0;

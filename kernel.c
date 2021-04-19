@@ -175,17 +175,24 @@ void print_memory_map_contents(boot_info_t* b_info){
 void kernel_start(uint64_t* kernel_ptr, boot_info_t* b_info) {
     int rc;
     syscall_init(); //initialize system calls
-    fb_init(b_info->framebuffer, 800, 600);
-    printf("Frame buffer: %p\n", b_info->framebuffer);
-    print_memory_map_contents(b_info);
+    fb_init(b_info->framebuffer, 1600, 900);
+    //printf("Frame buffer: %p\n", b_info->framebuffer);
+    //print_memory_map_contents(b_info);
 
     init_page_properties(b_info->memory_map, b_info->memory_map_size, b_info->memory_map_desc_size);
 
     debug_buddy_lists();
 
-    // void* b = get_block(1);
-    // printf("block %p\n", b);
-    // debug_buddy_lists();
+    void* b = get_block(512);
+    void* c = get_block(5);
+    printf("[+] paddr -> %p\n", b);
+    debug_buddy_lists();
+    free_block(c);
+    //free_block(b);
+    debug_buddy_lists();
+
+
+
 
     // printf("Kernel code size: %d b // %d pg\n", b_info->kernel_code_size, b_info->kernel_code_size  / 4096 + 1);
     // rc = alloc_pages(kernel_ptr, b_info->kernel_code_size / PAGESIZE + 1);
