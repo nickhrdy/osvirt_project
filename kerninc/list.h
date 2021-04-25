@@ -93,7 +93,8 @@
 #define false 0
 #define bool int
 
-#define assert(EXPR, STRING) (!(EXPR) ? HALT(STRING) : 0)
+#define assert(EXPR, STRING) ((EXPR) ? 0 : HALT(STRING))
+//#define assert(ig, nore) ((void) 0)
 
 #define offsetof(st, m) \
     __builtin_offsetof(st, m)

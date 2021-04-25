@@ -11,6 +11,7 @@
 #include<msr.h>
 #include<page_table.h>
 #include<allocator.h>
+#include<slob.h>
 #include<halt.h>
 
 static char* EFI_MEMORY_TYPE_STRINGS[] = {
@@ -181,17 +182,21 @@ void kernel_start(uint64_t* kernel_ptr, boot_info_t* b_info) {
 
     init_page_properties(b_info->memory_map, b_info->memory_map_size, b_info->memory_map_desc_size);
 
-    debug_buddy_lists();
+    // debug_buddy_lists();
+    // void* b = get_block(512);
+    // void* c = get_block(5);
+    // printf("[+] paddr -> %p\n", b);
+    // debug_buddy_lists();
+    // busy_loop();
+    // free_block(c);
+    // //free_block(b);
+    // debug_buddy_lists();
 
-    void* b = get_block(512);
-    void* c = get_block(5);
-    printf("[+] paddr -> %p\n", b);
-    debug_buddy_lists();
-    free_block(c);
-    //free_block(b);
-    debug_buddy_lists();
-
-
+    slob_init(512);
+    //debug_slob_lists();
+    slob_list_counts();
+    __slob_alloc(512);
+    slob_list_counts();
 
 
     // printf("Kernel code size: %d b // %d pg\n", b_info->kernel_code_size, b_info->kernel_code_size  / 4096 + 1);
@@ -232,19 +237,8 @@ void kernel_start(uint64_t* kernel_ptr, boot_info_t* b_info) {
     // setup_interrupts((tss_segment_t*) tss_ptr);
     // x86_lapic_enable(); //initialize local apic controller
 
-    // Now create user page table. The user page table will be in the
-    // same buffer as the kernel page table so the offset can be used to our advantage
-    // point base to be after kernel pages
-    // uint64_t* base = page_table_ptr + (8413184 / 8);
-    // uint64_t kernel_pml = (uint64_t)(page_table_ptr + 1050624);
-    // uint64_t user_pml = create_user_page_table(base, user_ptr, size, kernel_pml);
-
     // //Setup TLS for user
     // setup_tls(base, tss_ptr + 1024);
-
-    // // find the address of the user stack and the user code.
-    // // they share the address becuase of how they are allocated and mapped.
-    // uint64_t target_address = 0xFFFFFFFFC0001000;
 
     // //switch page table and jump to user
     // write_cr3((uint64_t) user_pml);

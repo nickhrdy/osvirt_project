@@ -100,7 +100,7 @@ static int init_buddy(void* addr, size_t total_mem_num_pages){
 /* Add a buddy block to the correct list */
 void __add_block(buddy_block_t* blk){
     size_t list_index = pages_to_buddy_index(blk->size);
-    list_insert(list_tail(&buddy_lists[list_index]), &blk->elem);
+    list_push_back(&buddy_lists[list_index], &blk->elem);
 }
 
 /* Remove a buddy block from it's list */
@@ -128,7 +128,7 @@ void* get_block(size_t num_pages){
             blk = list_entry(elem, buddy_block_t, elem);
 
             // split block until reaching an appropriate size
-            for(j = i-1; j >= list_index && j > 0; j--){
+            for(j = i-1; j > list_index && j > 0; j--){ // <-- Not sure if condition should be > or >=
                 // try to request a new buddy struct before splitting
                 if(!(buddy = __request_buddy()))
                     HALT("[!] Failed to get buddy struct from pool!\n");
