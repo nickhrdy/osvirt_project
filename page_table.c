@@ -82,7 +82,7 @@ void clear_page(void* addr){
     __builtin_memset(addr, 0, PAGESIZE);
 }
 
-int map_memory(page_pml_t* pml4, void* virtual_addr, void* physical_addr){
+int map_memory(page_pml_t* pml4, void* virtual_addr, void* physical_addr, int usermode){
     page_table_indexer_t indexes;
     void* temp_addr;
 
@@ -93,29 +93,29 @@ int map_memory(page_pml_t* pml4, void* virtual_addr, void* physical_addr){
 
     if(!pml4[indexes.pml_idx].present){
         //create entry
-        if(!(temp_addr = request_page()))
+        if(!(temp_addr = get_block(1)))
             return 2;
         clear_page(temp_addr);
-        set_pml(pml4, indexes.pml_idx, (uint64_t)temp_addr >> PAGESHIFT, 1, 0);
+        set_pml(pml4, indexes.pml_idx, (uint64_t)temp_addr >> PAGESHIFT, 1, usermode);
     }
     page_pdpe_t* pdpe = (page_pdpe_t*)((uint64_t)(pml4[indexes.pml_idx].page_address) << PAGESHIFT);
     if(!pdpe[indexes.pdpe_idx].present){
         //create entry
-        if(!(temp_addr = request_page()))
+        if(!(temp_addr = get_block(1)))
             return 3;
         clear_page(temp_addr);
-        set_pdpe(pdpe, indexes.pdpe_idx, (uint64_t)temp_addr >> PAGESHIFT, 1, 0);
+        set_pdpe(pdpe, indexes.pdpe_idx, (uint64_t)temp_addr >> PAGESHIFT, 1, usermode);
     }
     page_pde_t* pde = (page_pde_t*)((uint64_t)(pdpe[indexes.pdpe_idx].page_address) << PAGESHIFT);
     if(!pde[indexes.pde_idx].present){
         //create entry
-        if(!(temp_addr = request_page()))
+        if(!(temp_addr = get_block(1)))
             return 4;
         clear_page(temp_addr);
-        set_pde(pde, indexes.pde_idx, (uint64_t)temp_addr >> PAGESHIFT, 1, 0);
+        set_pde(pde, indexes.pde_idx, (uint64_t)temp_addr >> PAGESHIFT, 1, usermode);
     }
     page_pte_t* pte = (page_pte_t*)((uint64_t)(pde[indexes.pde_idx].page_address) << PAGESHIFT);
-    set_pte(pte, indexes.pte_idx, (uint64_t)physical_addr >> PAGESHIFT, 1, 0);
+    set_pte(pte, indexes.pte_idx, (uint64_t)physical_addr >> PAGESHIFT, 1, usermode);
     return 0;
 }
 

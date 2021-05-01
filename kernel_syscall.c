@@ -2,6 +2,8 @@
 #include <types.h>
 #include <msr.h>
 #include <printf.h>
+#include <allocator.h>
+#include <page_table.h>
 
 void *kernel_stack; /* Initialized in kernel_entry.S */
 void *user_stack = NULL; /* TODO: Must be initialized to a user stack region */
@@ -14,14 +16,24 @@ long do_syscall_entry(long n, long a1, long a2, long a3, long a4, long a5)
     // make sure it is valid
 
     //define read as 0
-    if( n != 0){
+    if( n > 1){
         return -1; // unknown syscall
     }
-    else{
+    else if (n == 0){
         printf((char*)a1);
     }
+    else{
+        //mem stuff
+        printf("MEMORY\n");
+    }
+
     return 0; /* Success */
 }
+
+
+
+
+
 
 void syscall_init(void)
 {

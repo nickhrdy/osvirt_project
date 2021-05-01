@@ -23,7 +23,8 @@ ld --oformat=binary -T ./kernel.lds -nostdlib -melf_x86_64 -pie kernel_entry.o a
 # Comple the user application
 gcc -Wall -Wno-builtin-declaration-mismatch -O2 -mno-red-zone -nostdinc -fno-stack-protector -I ./userinc -pie -fno-zero-initialized-in-bss -c user_entry.S
 gcc -Wall -Wno-builtin-declaration-mismatch -O2 -mno-red-zone -nostdinc -fno-stack-protector -I ./userinc -pie -fno-zero-initialized-in-bss -c user.c
-ld --oformat=binary -T ./user.lds -nostdlib -melf_x86_64 -pie user_entry.o user.o -o user
+gcc -Wall -Wno-builtin-declaration-mismatch -O2 -mno-red-zone -nostdinc -fno-stack-protector -I ./userinc -pie -fno-zero-initialized-in-bss -c mm.c
+ld --oformat=binary -T ./user.lds -nostdlib -melf_x86_64 -pie user_entry.o mm.o user.o -o user
 
 # Create an ISO image
 rm -rf uefi_iso_image

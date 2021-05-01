@@ -14,6 +14,7 @@
 #include<slob.h>
 #include<halt.h>
 
+
 static char* EFI_MEMORY_TYPE_STRINGS[] = {
     "EfiReservedMemoryType",
     "EfiLoaderCode",
@@ -46,8 +47,7 @@ page_pte_t* faulting_page; //pointer to page we will purposefully fault on
 uint64_t* replacement_page; // page to replace `faulting_page`
 
 /* Fills out a vector of the IDT table */
-static void x86_fillgate(int num, void *fn, int ist)
-{
+static void x86_fillgate(int num, void *fn, int ist){
     gate_descriptor_t* gd = &(idt[num]);
 
     gd->gd_hioffset = (uint64_t)fn >> 16;
@@ -91,53 +91,9 @@ void x86_trap_13(){
 /* page fault handler */
 void x86_trap_14(uint64_t rsp_addr){
     printf("\n[-] PAGE_FAULT (%%rsp == 0x%llx)\n", rsp_addr);
-    set_pte(faulting_page, 0, (uint64_t)replacement_page >> 12, 1, 1);
+    //set_pte(faulting_page, 0, (uint64_t)replacement_page >> 12, 1, 1);
     //Assume that the replacement page is the page after the user's pml
-    write_cr3((uint64_t)(replacement_page - 512));
-}
-
-/* Create a page table for the user */
-uint64_t create_user_page_table(uint64_t* base, uint64_t* user_ptr, uint64_t size, uint64_t kernel_pdpe) {
-int i;
-    /*
-    * user page table level 1
-    * 1MB = 1024KB              1024KB * (1 page / 512KB) = 256 pages
-    * first entry maps the stack, the second starts the user program and any
-    * extra pages are padding
-    */
-    page_pte_t* p = (page_pte_t*) base;
-    unsigned int num_pages = (size / 4096) + 1; //number of page that the code fits in
-
-    set_pte(p, 0, (uint64_t)(user_ptr - 512) >> 12, 1, 1);
-    for(i = 1; i <= num_pages; i++) { set_pte(p, i, (uint64_t)((user_ptr) + 512 * (i-1) ) >> 12, 1, 1); }
-    for(i = num_pages+1; i < 512; i++) { set_pte(p, i, 0, 0, 1); }
-
-    // user level 2
-    // first entry point to the pte and the rest are blank
-    page_pde_t* pde = (page_pde_t*) base + 512;
-    set_pde(pde, 0, (uint64_t) p >> 12, 1, 1);
-    for (i = 1; i < 512; i++) { set_pde(pde, i, 0, 0, 1); }
-
-    // user level 3
-    // last entry points to pde and the rest are blank
-    page_pdpe_t* pdpe = (page_pdpe_t*) (base + 1024);
-    for (i = 0; i < 511; i++) { set_pdpe(pdpe, i, 0, 0, 1); }
-    set_pdpe(pdpe, 511, (uint64_t) pde >> 12, 1, 1);
-
-    // user level 4
-    // first entry points to kernel pdpe, last to user pdpe, rest are blank
-    page_pml_t* pml = (page_pml_t*) (base + 1536);
-    set_pml(pml, 0, kernel_pdpe >> 12, 1, 0); //offset to kernel pml known
-    for (i = 1; i < 511; i++) { set_pml(pml, i, 0, 0, 1); }
-    set_pml(pml, 511, (uint64_t) pdpe >> 12, 1, 1);
-
-
-    //Assignment 2 Part 2: Set a replacement page in a global variable
-    //and set faulting_page to the page that we'll try to break
-    replacement_page = base + 2048;
-    faulting_page = &p[256];
-
-    return (uint64_t) pml;
+    //write_cr3((uint64_t)(replacement_page - 512));
 }
 
 void setup_interrupts(tss_segment_t* tss_ptr){
@@ -164,7 +120,6 @@ void setup_tls(uint64_t* user_page_table_base, uint64_t* base){
     wrmsr(MSR_FS, (uint64_t)0xFFFFFFFFC0101000);
 }
 
-
 void print_memory_map_contents(boot_info_t* b_info){
     uint64_t num_map_entries = b_info->memory_map_size / b_info->memory_map_desc_size;
     for (int i = 0 ; i < num_map_entries; i++){
@@ -177,10 +132,17 @@ void kernel_start(uint64_t* kernel_ptr, boot_info_t* b_info) {
     int rc;
     syscall_init(); //initialize system calls
     fb_init(b_info->framebuffer, 1600, 900);
+
     //printf("Frame buffer: %p\n", b_info->framebuffer);
     //print_memory_map_contents(b_info);
 
     init_page_properties(b_info->memory_map, b_info->memory_map_size, b_info->memory_map_desc_size);
+
+    printf("Kernel code size: %d b // %d pg\n", b_info->kernel_code_size, b_info->kernel_code_size / PAGESIZE + 1);
+    rc = alloc_pages(kernel_ptr, b_info->kernel_code_size / PAGESIZE + 1);
+    printf("Alloc_pages returned %d\n", rc);
+    alloc_page( (void*)((uint64_t)(b_info->framebuffer) & ~PAGESHIFT));
+    printf("Largest segment size: %d\n", get_largest_segment_size(b_info->memory_map, b_info->memory_map_size, b_info->memory_map_desc_size) / 1024);
 
     // debug_buddy_lists();
     // void* b = get_block(512);
@@ -192,56 +154,68 @@ void kernel_start(uint64_t* kernel_ptr, boot_info_t* b_info) {
     // //free_block(b);
     // debug_buddy_lists();
 
-    slob_init(512);
-    //debug_slob_lists();
-    slob_list_counts();
-    __slob_alloc(512);
-    slob_list_counts();
+    // slob_init(512);
+    // //debug_slob_lists();
+    // slob_list_counts();
+    // __slob_alloc(512);
+    // __slob_alloc(32);
+    // slob_list_counts();
 
 
-    // printf("Kernel code size: %d b // %d pg\n", b_info->kernel_code_size, b_info->kernel_code_size  / 4096 + 1);
-    // rc = alloc_pages(kernel_ptr, b_info->kernel_code_size / PAGESIZE + 1);
-    // printf("Alloc_pages returned %d\n", rc);
-    // alloc_page( (void*)((uint64_t)(b_info->framebuffer) & ~PAGESHIFT));
+    /* Create kernel page table */
+    print_allocator();
+    debug_buddy_lists();
+    page_pml_t* kernel_pml = (page_pml_t*) get_block(1);
+    clear_page(kernel_pml);
+    uint64_t size = get_memory_map_size(b_info->memory_map, b_info->memory_map_size, b_info->memory_map_desc_size);
+    //debug_buddy_lists();
 
-    // printf("Largest segment size: %d\n", get_largest_segment_size(b_info->memory_map, b_info->memory_map_size, b_info->memory_map_desc_size) / 1024);
+    printf("Kernel pml: %p\n", kernel_pml);
+    for(uint64_t i = 0; i < size; i += PAGESIZE){
+        if((rc = map_memory(kernel_pml, (void*)i, (void*)i, 0))){
+            printf("[!] Failed to map kernel table! Status(%d)\n", rc);
+            halt();
+        }
+    }
+    printf("Checkpoint\n");
 
-    // /* Create kernel page table */
-    // page_pml_t* kernel_pml = (page_pml_t*) request_page();
-    // clear_page(kernel_pml);
-    // uint64_t size = get_memory_map_size(b_info->memory_map, b_info->memory_map_size, b_info->memory_map_desc_size);
-    // print_allocator();
+    /* Map framebuffer into memory */
+    for(uint64_t i  = (uint64_t)b_info->framebuffer; i < (uint64_t)b_info->framebuffer + (1 << 24); i += PAGESIZE){
+        if((rc = map_memory(kernel_pml, (void*)i, (void*)i, 0))){
+            printf("[!] Failed to map framebuffer! Status(%d)\n", rc);
+            halt();
+        }
+    }
 
-    // printf("Kernel pml: %p\n", kernel_pml);
-    // for(uint64_t i = 0; i < size; i += PAGESIZE){
-    //     if((rc = map_memory(kernel_pml, (void*)i, (void*)i))){
-    //         printf("[!] Failed to map kernel table! Status(%d)\n", rc);
-    //         halt();
-    //     }
-    // }
+    page_pml_t* user_pml = (page_pml_t*) get_block(1);
+    clear_page(user_pml);
+    user_pml[0].page_address = kernel_pml[0].page_address;
+    user_pml[0].writable = 1;
+    user_pml[0].present = 1;
+    user_pml[0].usermode = 0;
 
-    // /* Map framebuffer into memory */
-    // for(uint64_t i  = (uint64_t)b_info->framebuffer; i < (uint64_t)b_info->framebuffer + (1 << 24); i += PAGESIZE){
-    //     if((rc = map_memory(kernel_pml, (void*)i, (void*)i))){
-    //         printf("[!] Failed to map framebuffer! Status(%d)\n", rc);
-    //         halt();
-    //     }
-    // }
+    printf("User pml: %p\n", user_pml);
 
-    //debug_page_table(kernel_pml);
-    // printf("Overwriting cr3\n");
-    // write_cr3((uint64_t)kernel_pml & ~0xFFFULL);
+    for(uint64_t i = 0 ; i < b_info->user_code_size; i += PAGESIZE){
+        if((rc = map_memory(user_pml, (void*)(0x8000003000 + i), (void*)( (uint64_t)b_info->user_buffer + i), 1))){
+            printf("[!] Failed to map user table! Status(%d)\n", rc);
+            halt();
+        }
+    }
 
+    //x86_lapic_enable(); //initialize local apic controller
+
+    void* user_stack_ptr = get_block(1);
+    if((rc = map_memory(user_pml, (void*)(0x8000001000), user_stack_ptr, 1))){
+        printf("[!] Failed to map framebuffer! Status(%d)\n", rc);
+        halt();
+    }
+
+    user_stack = (void*) 0x8000002000;
+    setup_interrupts((tss_segment_t*) b_info->tss_buffer);
+
+    printf("Overwriting cr3\n");
+    write_cr3((uint64_t)user_pml);
+    user_jump((void*)(0x8000003000));
     HALT("We made it to end of kernel!\n");
-
-    // setup_interrupts((tss_segment_t*) tss_ptr);
-    // x86_lapic_enable(); //initialize local apic controller
-
-    // //Setup TLS for user
-    // setup_tls(base, tss_ptr + 1024);
-
-    // //switch page table and jump to user
-    // write_cr3((uint64_t) user_pml);
-    // user_stack = (void*)target_address;
-    // user_jump((void*)target_address);
 }

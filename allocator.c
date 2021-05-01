@@ -79,7 +79,7 @@ static int init_buddy(void* addr, size_t total_mem_num_pages){
         }
 
         // add big chunk to list
-        if(!(blk = __request_buddy())) 
+        if(!(blk = __request_buddy()))
             HALT("[!] Failed to initialize buddy!\n");
 
         // set attributes
@@ -122,7 +122,7 @@ void* get_block(size_t num_pages){
 
         // ...if a block is available...
         if(!list_empty(&buddy_lists[i])){
-            printf("[-] In buddy list %d\n", i);
+            //printf("[-] In buddy list %d\n", i);
             // grab pointer to block
             elem = list_front(&buddy_lists[i]);
             blk = list_entry(elem, buddy_block_t, elem);
@@ -138,7 +138,7 @@ void* get_block(size_t num_pages){
                 buddy->size = blk->size / 2;
                 blk->size = blk->size / 2;
 
-                //add new bud to list 
+                //add new bud to list
                 __add_block(buddy);
             }
 
@@ -183,7 +183,7 @@ void free_block(void* addr){
         if(blk->physical_addr > buddy->physical_addr) {
             buddy->size *= 2;
             free_block((void*)buddy->physical_addr);
-        } 
+        }
         else {
             blk->size *= 2;
             free_block((void*)blk->physical_addr);

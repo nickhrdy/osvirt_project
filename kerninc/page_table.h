@@ -117,6 +117,6 @@ void debug_page_table(void* pml_ptr);
 void get_page_indexes(page_table_indexer_t* indexes, void* virtual_addr);
 
 /* Maps a physical address to a virtual address in a page table */
-int map_memory(page_pml_t* pml4, void* virtual_addr, void* physical_addr);
+int map_memory(page_pml_t* pml4, void* virtual_addr, void* physical_addr, int usermode);
 
 #endif

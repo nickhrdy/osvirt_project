@@ -190,7 +190,7 @@ efi_main(EFI_HANDLE imageHandle, EFI_SYSTEM_TABLE *systemTable)
         return efi_status;
     }
 
-    UINTN size = 4096 *  256;
+    UINTN user_size = 4096 *  256;
     UINTN kernel_size = 4096 *  256;
     EFI_PHYSICAL_ADDRESS kernel_buffer = 0; // kernel program code and stack
     EFI_PHYSICAL_ADDRESS user_buffer = 0; //user program code and stack
@@ -198,7 +198,7 @@ efi_main(EFI_HANDLE imageHandle, EFI_SYSTEM_TABLE *systemTable)
 
     //allocate pages (1MB + 1 page for stack)
     efi_status = BootServices->AllocatePages(AllocateAnyPages, EfiRuntimeServicesData, 257, &user_buffer);
-    efi_status = BootServices->AllocatePages(AllocateAnyPages, EfiRuntimeServicesData, 257, &kernel_buffer);
+    efi_status = BootServices->AllocatePages(AllocateAnyPages, EfiRuntimeServicesData, 256, &kernel_buffer);
     efi_status = BootServices->AllocatePages(AllocateAnyPages, EfiRuntimeServicesData, 3, &tss_buffer);
 
     if (EFI_ERROR(efi_status)) { //Check for errors
@@ -218,7 +218,7 @@ efi_main(EFI_HANDLE imageHandle, EFI_SYSTEM_TABLE *systemTable)
     // pointers to hold buffers
     // they are moved up a page since the first apge will be used for stacks
     VOID* kernel_code_baseptr = (void*) (kernel_buffer + 4096);
-    VOID* user_code_baseptr = (void*) (user_buffer + 4096);
+    VOID* user_code_baseptr = (void*) (user_buffer);
     VOID* tss_baseptr = (void*) (tss_buffer + 4096);
 
     //check pointers
@@ -240,8 +240,8 @@ efi_main(EFI_HANDLE imageHandle, EFI_SYSTEM_TABLE *systemTable)
 
 
 
-    size = 4096 *  256;
-    efi_status = uh->Read(uh,&size, user_code_baseptr);
+    user_size = 4096 *  256;
+    efi_status = uh->Read(uh,&user_size, user_code_baseptr);
     if(EFI_ERROR(efi_status)){
         if(efi_status == EFI_BUFFER_TOO_SMALL) {
                 SystemTable->ConOut->OutputString(SystemTable->ConOut, L"Error: GetMemoryMap(): Failed to retrieve map again! \r\n");
@@ -282,7 +282,7 @@ efi_main(EFI_HANDLE imageHandle, EFI_SYSTEM_TABLE *systemTable)
     UINTN descriptorSize;
     UINT32 descriptorVersion;
     //fill boot info with what we can
-    struct boot_info_t boot_info = {(unsigned int*)fb, (uint64_t*)user_code_baseptr, (uint64_t) kernel_size, (uint64_t)size, (uint64_t*)tss_baseptr, (uint64_t*)page_table_baseptr};
+    struct boot_info_t boot_info = {(unsigned int*)fb, (uint64_t*)user_code_baseptr, (uint64_t) kernel_size, (uint64_t)user_size, (uint64_t*)tss_baseptr, (uint64_t*)page_table_baseptr};
 
 
 
