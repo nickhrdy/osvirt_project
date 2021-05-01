@@ -45,6 +45,7 @@ void *gp_hdl_ptr; /*general protection handler; set in kernel_entry.S*/
 static gate_descriptor_t idt[256] __attribute__((aligned(16))); // IDT table
 page_pte_t* faulting_page; //pointer to page we will purposefully fault on
 uint64_t* replacement_page; // page to replace `faulting_page`
+page_pml_t* user_pml;
 
 /* Fills out a vector of the IDT table */
 static void x86_fillgate(int num, void *fn, int ist){
@@ -91,6 +92,7 @@ void x86_trap_13(){
 /* page fault handler */
 void x86_trap_14(uint64_t rsp_addr){
     printf("\n[-] PAGE_FAULT (%%rsp == 0x%llx)\n", rsp_addr);
+    halt();
     //set_pte(faulting_page, 0, (uint64_t)replacement_page >> 12, 1, 1);
     //Assume that the replacement page is the page after the user's pml
     //write_cr3((uint64_t)(replacement_page - 512));
@@ -138,11 +140,11 @@ void kernel_start(uint64_t* kernel_ptr, boot_info_t* b_info) {
 
     init_page_properties(b_info->memory_map, b_info->memory_map_size, b_info->memory_map_desc_size);
 
-    printf("Kernel code size: %d b // %d pg\n", b_info->kernel_code_size, b_info->kernel_code_size / PAGESIZE + 1);
+    printf("[|] Kernel code size: %d b // %d pg\n", b_info->kernel_code_size, b_info->kernel_code_size / PAGESIZE + 1);
     rc = alloc_pages(kernel_ptr, b_info->kernel_code_size / PAGESIZE + 1);
-    printf("Alloc_pages returned %d\n", rc);
+    printf("[|] Alloc_pages returned %d\n", rc);
     alloc_page( (void*)((uint64_t)(b_info->framebuffer) & ~PAGESHIFT));
-    printf("Largest segment size: %d\n", get_largest_segment_size(b_info->memory_map, b_info->memory_map_size, b_info->memory_map_desc_size) / 1024);
+    printf("[|] Largest segment size: %d\n", get_largest_segment_size(b_info->memory_map, b_info->memory_map_size, b_info->memory_map_desc_size) / 1024);
 
     // debug_buddy_lists();
     // void* b = get_block(512);
@@ -187,7 +189,7 @@ void kernel_start(uint64_t* kernel_ptr, boot_info_t* b_info) {
         }
     }
 
-    page_pml_t* user_pml = (page_pml_t*) get_block(1);
+    user_pml = (page_pml_t*) get_block(1);
     clear_page(user_pml);
     user_pml[0].page_address = kernel_pml[0].page_address;
     user_pml[0].writable = 1;
@@ -214,8 +216,8 @@ void kernel_start(uint64_t* kernel_ptr, boot_info_t* b_info) {
     user_stack = (void*) 0x8000002000;
     setup_interrupts((tss_segment_t*) b_info->tss_buffer);
 
-    printf("Overwriting cr3\n");
+    printf("[|] Overwriting cr3\n");
     write_cr3((uint64_t)user_pml);
     user_jump((void*)(0x8000003000));
-    HALT("We made it to end of kernel!\n");
+    HALT("[|] We made it to end of kernel!\n");
 }
