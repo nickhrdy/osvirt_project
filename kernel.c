@@ -37,6 +37,8 @@ char* memory_type_to_string(enum EFI_MEMORY_TYPES type){
 }
 
 #define DEBUG 0
+#define TIME_START(a, b) b = *time_ptr; printf("%s Start Time: %d\n", a, b)
+#define TIME_END(a, b) printf("%s Time elapsed: %d\n", a, *time_ptr - b)
 
 void *generic_trap_hdl_ptr; /*generic exception handler; set in kernel_entry.S*/
 void *pg_fault_hdl_ptr; /*page_fault exception handler; set in kernel_entry.S*/
@@ -46,6 +48,7 @@ static gate_descriptor_t idt[256] __attribute__((aligned(16))); // IDT table
 page_pte_t* faulting_page; //pointer to page we will purposefully fault on
 uint64_t* replacement_page; // page to replace `faulting_page`
 page_pml_t* user_pml;
+extern uint64_t* time_ptr;
 
 /* Fills out a vector of the IDT table */
 static void x86_fillgate(int num, void *fn, int ist){
@@ -130,14 +133,74 @@ void print_memory_map_contents(boot_info_t* b_info){
     }
 }
 
+void eval_buddy_system(void){
+    uint64_t t;
+    TIME_START("Correctness", t);
+    //lots of grabs of diff size
+    for(uint64_t i = 2 ; i < 1 << 5; i <<= 1 ){
+        void *a = get_block(i);
+        void *b = get_block(i);
+        printf("%p %p\n", a, b);
+        free_block(a);
+        free_block(b);
+    }
+    TIME_END("Correctness", t);
+
+    debug_buddy_lists();
+
+    TIME_START("Full Allocate", t);
+    for(uint64_t i = 1 << 5 ; i > 2 ; i >>= 1 ){
+        get_block(i);
+        get_block(i);
+    }
+    TIME_END("Full Allocate", t);
+
+    debug_buddy_lists();
+}
+
+void eval_slob_allocator(void){
+    size_t list_size = 10000;
+    slob_init(list_size * 3);
+    uint64_t t;
+
+    TIME_START("Correctness", t);
+    for(size_t i = 0; i < list_size; i++){
+        void * a = kmalloc(256);
+        void * b = kmalloc(256);
+
+        krealloc(b, 4096);
+        krealloc(a, 1024);
+        krealloc(b, 1024);
+        krealloc(a, 4096);
+
+        kfree(b);
+        kfree(a);
+    }
+    TIME_END("Correctness", t);
+
+    debug_slob_lists();
+
+    TIME_START("Full Allocate", t);
+    for(size_t i = 0; i < list_size; i++){
+        kmalloc(256);
+    }
+    for(size_t i = 0; i < list_size; i++){
+        kmalloc(1024);
+    }
+    for(size_t i = 0; i < list_size; i++){
+        kmalloc(4096);
+    }
+    TIME_END("Full Allocate", t);
+
+    debug_slob_lists();
+}
+
+
+
 void kernel_start(uint64_t* kernel_ptr, boot_info_t* b_info) {
     int rc;
     syscall_init(); //initialize system calls
     fb_init(b_info->framebuffer, 1600, 900);
-
-    //printf("Frame buffer: %p\n", b_info->framebuffer);
-    //print_memory_map_contents(b_info);
-
     init_page_properties(b_info->memory_map, b_info->memory_map_size, b_info->memory_map_desc_size);
 
     printf("[|] Kernel code size: %d b // %d pg\n", b_info->kernel_code_size, b_info->kernel_code_size / PAGESIZE + 1);
@@ -145,24 +208,6 @@ void kernel_start(uint64_t* kernel_ptr, boot_info_t* b_info) {
     printf("[|] Alloc_pages returned %d\n", rc);
     alloc_page( (void*)((uint64_t)(b_info->framebuffer) & ~PAGESHIFT));
     printf("[|] Largest segment size: %d\n", get_largest_segment_size(b_info->memory_map, b_info->memory_map_size, b_info->memory_map_desc_size) / 1024);
-
-    // debug_buddy_lists();
-    // void* b = get_block(512);
-    // void* c = get_block(5);
-    // printf("[+] paddr -> %p\n", b);
-    // debug_buddy_lists();
-    // busy_loop();
-    // free_block(c);
-    // //free_block(b);
-    // debug_buddy_lists();
-
-    // slob_init(512);
-    // //debug_slob_lists();
-    // slob_list_counts();
-    // __slob_alloc(512);
-    // __slob_alloc(32);
-    // slob_list_counts();
-
 
     /* Create kernel page table */
     print_allocator();
@@ -179,7 +224,6 @@ void kernel_start(uint64_t* kernel_ptr, boot_info_t* b_info) {
             halt();
         }
     }
-    printf("Checkpoint\n");
 
     /* Map framebuffer into memory */
     for(uint64_t i  = (uint64_t)b_info->framebuffer; i < (uint64_t)b_info->framebuffer + (1 << 24); i += PAGESIZE){
@@ -189,6 +233,23 @@ void kernel_start(uint64_t* kernel_ptr, boot_info_t* b_info) {
         }
     }
 
+    // map last gig into kernel since interrupt addresses are there
+    for(uint64_t i  = 0xc0000000; i < 0x100000000; i += PAGESIZE){
+        if((rc = map_memory(kernel_pml, (void*)i, (void*)i, 0))){
+            printf("[!] Failed to map framebuffer! Status(%d)\n", rc);
+            halt();
+        }
+    }
+
+    x86_lapic_enable(); //initialize local apic controller
+    setup_interrupts((tss_segment_t*) b_info->tss_buffer);
+
+    // run our benchmarks
+    //eval_buddy_system();
+    //eval_slob_allocator();
+
+
+    //setup user stuff
     user_pml = (page_pml_t*) get_block(1);
     clear_page(user_pml);
     user_pml[0].page_address = kernel_pml[0].page_address;
@@ -205,7 +266,6 @@ void kernel_start(uint64_t* kernel_ptr, boot_info_t* b_info) {
         }
     }
 
-    //x86_lapic_enable(); //initialize local apic controller
 
     void* user_stack_ptr = get_block(1);
     if((rc = map_memory(user_pml, (void*)(0x8000001000), user_stack_ptr, 1))){
@@ -214,10 +274,12 @@ void kernel_start(uint64_t* kernel_ptr, boot_info_t* b_info) {
     }
 
     user_stack = (void*) 0x8000002000;
-    setup_interrupts((tss_segment_t*) b_info->tss_buffer);
+
 
     printf("[|] Overwriting cr3\n");
     write_cr3((uint64_t)user_pml);
     user_jump((void*)(0x8000003000));
+
+
     HALT("[|] We made it to end of kernel!\n");
 }

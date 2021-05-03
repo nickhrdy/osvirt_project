@@ -50,7 +50,7 @@ static buddy_block_t* __find_buddy(void* physical_address){
     uint64_t i;
     uint64_t addr = (uint64_t)physical_address;
 
-    for (i = 0; i < num_buddy_pages / sizeof(buddy_block_t); i++){
+    for (i = 0; i < num_buddy_pages * (PAGESIZE / sizeof(buddy_block_t)); i++){
         if (buddy_pool[i].physical_addr == addr)
             return (buddy_block_t*) (buddy_pool + i);
     }

@@ -1,5 +1,8 @@
 #include <mm.h>
 #define PAGESIZE 4096
+#define TAGSIZE sizeof(boundary_block_t)
+#define PRINT(msg) __syscall1(0, (long)msg)
+#define PRINTF(msg, a) __syscall2(3, (long)msg, a)
 /* private variables */
 static char *mem_start_brk = NULL;  /* points to first byte of heap */
 static char *mem_brk = NULL;        /* points to last byte of heap */
@@ -15,49 +18,50 @@ void *mem_sbrk(int incr)
     char *old_brk = mem_brk;
 
     if ( (incr < 0) || ((mem_brk + incr) > mem_max_addr)) {
-	    __syscall1(0, (long)"mem_sbrk failed. probably out of memory\n");
+	    __syscall1(0, (long)"[!] mem_sbrk() failed. Probably out of memory!!\n");
 	    return NULL;
     }
     mem_brk += incr;
     return (void *)old_brk;
 }
 
-
+/* |header||payload| */
 static void* get_payload(boundary_block_t* cur_block){
-    /* |header||payload| */
-    return (void*)(((char*)cur_block) + sizeof(boundary_block_t));
+    return (void*)(((char*)cur_block) + TAGSIZE);
 }
 
+/* |header||payload||footer||next_block_header|.... */
 static boundary_block_t* get_next(boundary_block_t* cur_block){
-    /* |header||payload||footer||next_block_header|.... */
-    if((void*)cur_block == mem_brk - sizeof(boundary_block_t)) return NULL;
-    if((void*)cur_block == mem_start_brk) return cur_block + 1;
-    return (boundary_block_t*)(((char*)cur_block) + cur_block->size + sizeof(boundary_block_t)*2);
+    if((void*)cur_block == mem_brk - TAGSIZE) // tail case
+        return NULL;
+    if((void*)cur_block == mem_start_brk) return cur_block + 1; // head case
+    return (boundary_block_t*)(((char*)cur_block) + cur_block->size + TAGSIZE*2);
 }
 
+/* |prev_block_header||prev_block_payload||prev_block_footer||header|.... */
 static boundary_block_t* get_prev(boundary_block_t* cur_block){
-    /* |prev_block_header||prev_block_payload||prev_block_footer||header|.... */
-    if((void*)cur_block == mem_start_brk) return NULL; //fence case
-    boundary_block_t* prev_footer = (boundary_block_t*)(((char*)cur_block) - sizeof(boundary_block_t));
-    return (boundary_block_t*)(((char*)cur_block) - sizeof(boundary_block_t)*2 - prev_footer->size);
+    if((void*)cur_block == mem_start_brk) // head case
+        return NULL;
+
+    boundary_block_t* prev_footer = (boundary_block_t*)(((char*)cur_block) - TAGSIZE);
+    return (boundary_block_t*)(((char*)cur_block) - TAGSIZE*2 - prev_footer->size);
 }
 
+/* |header||payload||footer| */
 static boundary_block_t* get_footer(boundary_block_t* cur_block){
-    /* |header||payload||footer| */
-    return (boundary_block_t*)(((char*)cur_block) + sizeof(boundary_block_t) + cur_block->size);
+    return (boundary_block_t*)(((char*)cur_block) + TAGSIZE + cur_block->size);
 }
 
 static boundary_block_t* find_block(size_t size){
     boundary_block_t* cur_block;
     for(cur_block = (boundary_block_t*)mem_start_brk; cur_block != NULL; cur_block = get_next(cur_block)){
-        __syscall2(3, (long)"[|] Found Cur Block: %p\n", (long)cur_block);
-        __syscall2(3, (long)"[|] Cur Block size: %llu\n", (long)cur_block->size);
-        __syscall2(3, (long)"[|] Cur Block free: %llu\n", (long)cur_block->free);
+        // __syscall2(3, (long)"[|] Found Cur Block: %p\n", (long)cur_block);
+        // __syscall2(3, (long)"[|] Cur Block size: %llu\n", (long)cur_block->size);
+        // __syscall2(3, (long)"[|] Cur Block free: %llu\n", (long)cur_block->free);
         if (cur_block->free && cur_block->size >= size) return cur_block;
     }
     return NULL;
 }
-
 
 /*mark header and footer as used*/
 static void mark_used(boundary_block_t* cur_block, size_t size){
@@ -77,9 +81,9 @@ static void mark_free(boundary_block_t* cur_block, size_t size){
 
 /*call mem_sbrk to make the heap larger*/
 boundary_block_t* extend_heap(size_t size){
-    size_t to_extend = max(size + 2*sizeof(boundary_block_t), MIN_BLOCK_SIZE);
-    boundary_block_t* new_last_block = (boundary_block_t*)((char*)mem_sbrk(to_extend) - sizeof(boundary_block_t));
-    __syscall2(3, (long)"[?] extend heap: new last block => %p\n", (long)(new_last_block));
+    size_t to_extend = max(size + 2*TAGSIZE, MIN_BLOCK_SIZE);
+    boundary_block_t* new_last_block = (boundary_block_t*)((char*)mem_sbrk(to_extend) - TAGSIZE);
+    //__syscall2(3, (long)"[?] extend heap: new last block => %p\n", (long)(new_last_block));
     mark_free(new_last_block, size);
     get_next(new_last_block)->free = 0;
     get_next(new_last_block)->size = 0;
@@ -88,23 +92,19 @@ boundary_block_t* extend_heap(size_t size){
 
 
 //whats left after split is bigger than min block size
-// whats left = old_size - to_use - 2*sizeof(boundary_block_t)
+// whats left = old_size - to_use - 2*TAGSIZE
 // if whats left >= minblocksize > split
 static void split(boundary_block_t* cur_block, int to_use){
     int old_size = (int)cur_block->size;
-
-    int split_size = max(0,((int)old_size) - to_use - ((int)sizeof(boundary_block_t)) - ((int)sizeof(boundary_block_t)));
+    int split_size = max(0,((int)old_size) - to_use - ((int)TAGSIZE) - ((int)TAGSIZE));
 
     if (split_size > MIN_BLOCK_SIZE){
         mark_used(cur_block, to_use);
-        __syscall2(3, (long)"----Marking free %d\n",split_size);
         mark_free(get_next(cur_block), split_size);
     }
     else{
-        __syscall2(3, (long)"----Used!! %d\n",split_size);
         mark_used(cur_block, old_size);
     }
-
 }
 
 
@@ -124,11 +124,17 @@ static void coalesce(boundary_block_t* cur_block){
     next_size = get_next(cur_block)->size;
 
     if(prev_free && next_free)
-        mark_free(get_prev(cur_block), prev_size + next_size + cur_block->size + sizeof(boundary_block_t) * 4);
+        /*|prev_head|prev_payload|prev_footer||cur_head|cur_payload|cur_footer||nxt_head|nxt_payload|nxt_footer|*/
+        /*|head|payload|foot|*/
+        mark_free(get_prev(cur_block), prev_size + next_size + cur_block->size + TAGSIZE * 4);
     else if(prev_free)
-        mark_free(get_prev(cur_block), prev_size + cur_block->size + sizeof(boundary_block_t) * 2);
+        /*|prev_head|prev_payload|prev_footer||cur_head|cur_payload|cur_footer|*/
+        /*|head|payload|foot|*/
+        mark_free(get_prev(cur_block), prev_size + cur_block->size + TAGSIZE * 2);
     else if(next_free)
-        mark_free(cur_block, next_size + cur_block->size + sizeof(boundary_block_t) * 2);
+        /*|cur_head|cur_payload|cur_footer||nxt_head|nxt_payload|nxt_footer|*/
+        /*|head|payload|foot|*/
+        mark_free(cur_block, next_size + cur_block->size + TAGSIZE * 2);
     else
         mark_free(cur_block, cur_block->size);
 }
@@ -155,30 +161,30 @@ void memlib_init(void)
 }
 
 void * mm_malloc(size_t size){
-    __syscall2(3, (long)"[|] Mallocing for size: 0x%llx!\n", (long)size);
+    //__syscall2(3, (long)"[|] Mallocing for size: 0x%llx!\n", (long)size);
     if(!mem_max_addr){
         __syscall1(0, (long)"[?] mm_malloc: calling memlib_init!\n");
         memlib_init();
     }
 
-    if (!size) return NULL;
+    if (!size)
+        return NULL;
 
     size = max(MIN_BLOCK_SIZE, size);
-    //__syscall1(0, (long)"find block?\n");
     boundary_block_t *cur_block = find_block(size);
-    //__syscall1(0, (long)"find block!\n");
 
     if (cur_block == NULL){
         //no fit found grow the heap
-        __syscall1(0, (long)"[|] Extending heap!\n");
+        //__syscall1(0, (long)"[|] Extending heap!\n");
         cur_block = extend_heap(size);//(size_t)(mem_brk - mem_start_brk) * 2);
         if (cur_block == NULL){
             __syscall1(0, (long)"[!] Failed to extend heap!!\n");
             return NULL;
         }
     }
-    __syscall1(0, (long)"[|] Splitting in malloc!\n");
+    //__syscall1(0, (long)"[|] Splitting in malloc!\n");
     split(cur_block, size);
+    //debug_heap_user();
     return get_payload(cur_block);
 }
 
@@ -194,7 +200,31 @@ void * mm_realloc(void *addr, size_t size){
 }
 
 void mm_free(void *addr){
-    if(addr == NULL) return;
-    boundary_block_t *cur_block = (boundary_block_t *)(((char*)addr) - sizeof(boundary_block_t));
+    if(!addr) return;
+    boundary_block_t *cur_block = (boundary_block_t *)(((char*)addr) - TAGSIZE);
     coalesce(cur_block);
+}
+
+void debug_heap_user(){
+    PRINT("[?] Debugging user heap...\n");
+    boundary_block_t* tmp;
+
+    char* ptr = (char*) mem_start_brk;
+    ptr += TAGSIZE; //move past first fence
+
+    tmp = (boundary_block_t*)ptr;
+    PRINTF("Heap (not including first fence) starts at %p\n", tmp);
+    if (!tmp->free && !tmp->size){
+        PRINT("Heap empty\n");
+        return;
+    }
+
+    while(tmp->size){ //print and hop until last fence
+        PRINTF("%p, ", tmp);
+        PRINTF("size: %d, ", tmp->size);
+        PRINTF("%d\n", tmp->free);
+        ptr += (tmp->size + TAGSIZE * 2);
+        tmp = (boundary_block_t*)ptr;
+    }
+    PRINT("[?] Done debugging user heap...\n");
 }

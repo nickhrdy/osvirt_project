@@ -9,6 +9,8 @@
 #include <printf.h>
 
 static void *lapic_base = NULL;
+static uint64_t time = 0;
+uint64_t* time_ptr;
 
 static inline void
 cpuid(uint32_t level, uint32_t *eax_out, uint32_t *ebx_out,
@@ -135,15 +137,17 @@ x86_lapic_enable(void)
 	x86_lapic_write(X86_LAPIC_TPR, 0x00U);
 
     /* Assignment 2 Q3: Setup timer */
-    x86_lapic_write(X86_LAPIC_TIMER_DIVIDE, 0x0AU);
-    x86_lapic_write(X86_LAPIC_TIMER_INIT, 0x400000U);
+    x86_lapic_write(X86_LAPIC_TIMER_DIVIDE, 0x00U);
+    x86_lapic_write(X86_LAPIC_TIMER_INIT, 0x10000U);
     //lowest bits set the vector, bits 17-18 set the mode
     //00 == one-shot, 01 == periodic, 10 == TSC Deadline
     x86_lapic_write(X86_LAPIC_TIMER, 0x030U | 0x01 << 17 );
+    time_ptr = &time;
 }
 
 /* timer handler */
 void timer_handler(){
-    printf("[-] TIMER INTERRUPT\n");
+    //printf("a\n");
+    time++;
     x86_lapic_write(X86_LAPIC_EOI, 0x00U); //ack
 }
