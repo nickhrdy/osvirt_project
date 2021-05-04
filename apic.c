@@ -10,7 +10,7 @@
 
 static void *lapic_base = NULL;
 static uint64_t time = 0;
-uint64_t* time_ptr;
+uint64_t* time_ptr; //global pointer to the current time
 
 static inline void
 cpuid(uint32_t level, uint32_t *eax_out, uint32_t *ebx_out,
@@ -147,7 +147,6 @@ x86_lapic_enable(void)
 
 /* timer handler */
 void timer_handler(){
-    //printf("a\n");
-    time++;
+    time++; // increment timer
     x86_lapic_write(X86_LAPIC_EOI, 0x00U); //ack
 }

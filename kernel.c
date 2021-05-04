@@ -14,28 +14,6 @@
 #include<slob.h>
 #include<halt.h>
 
-
-static char* EFI_MEMORY_TYPE_STRINGS[] = {
-    "EfiReservedMemoryType",
-    "EfiLoaderCode",
-    "EfiLoaderData",
-    "EfiBootServicesCode",
-    "EfiBootServicesData",
-    "EfiRuntimeServicesCode",
-    "EfiRuntimeServicesData",
-    "EfiConventionalMemory",
-    "EfiUnusableMemory",
-    "EfiACPIReclaimMemory",
-    "EfiACPIMemoryNVS",
-    "EfiMemoryMappedIO",
-    "EfiMemoryMappedIOPortSpace",
-    "EfiPalCode"
-};
-
-char* memory_type_to_string(enum EFI_MEMORY_TYPES type){
-    return EFI_MEMORY_TYPE_STRINGS[type];
-}
-
 #define DEBUG 0
 #define TIME_START(a, b) b = *time_ptr; printf("%s Start Time: %d\n", a, b)
 #define TIME_END(a, b) printf("%s Time elapsed: %d\n", a, *time_ptr - b)
@@ -85,20 +63,19 @@ static void create_idt_table(){
 /* generic fault handler */
 void x86_trap_generic(uint64_t rsp_addr){
     printf("\n[=] GENERIC EXCEPTION (%%rsp == 0x%llx)\n", rsp_addr);
+    halt();
 }
 
 /* general protection fault handler */
 void x86_trap_13(){
     printf("\n[-] GENERAL PROTECTION FAULT\n");
+    halt();
 }
 
 /* page fault handler */
 void x86_trap_14(uint64_t rsp_addr){
     printf("\n[-] PAGE_FAULT (%%rsp == 0x%llx)\n", rsp_addr);
     halt();
-    //set_pte(faulting_page, 0, (uint64_t)replacement_page >> 12, 1, 1);
-    //Assume that the replacement page is the page after the user's pml
-    //write_cr3((uint64_t)(replacement_page - 512));
 }
 
 void setup_interrupts(tss_segment_t* tss_ptr){
@@ -117,13 +94,6 @@ void setup_interrupts(tss_segment_t* tss_ptr){
     load_tss_segment(0x28, tss);
 }
 
-void setup_tls(uint64_t* user_page_table_base, uint64_t* base){
-    set_pte((page_pte_t*)user_page_table_base, 257, (uint64_t)(base) >> 12, 1, 1);
-    tls_block_t* tls_block = (tls_block_t*)base;
-    tls_block->myself = (tls_block_t*)0xFFFFFFFFC0101000;
-    __builtin_memset(tls_block->padding, 0, 4096-8);
-    wrmsr(MSR_FS, (uint64_t)0xFFFFFFFFC0101000);
-}
 
 void print_memory_map_contents(boot_info_t* b_info){
     uint64_t num_map_entries = b_info->memory_map_size / b_info->memory_map_desc_size;
@@ -133,69 +103,45 @@ void print_memory_map_contents(boot_info_t* b_info){
     }
 }
 
-void eval_buddy_system(void){
-    uint64_t t;
-    TIME_START("Correctness", t);
+void show_buddy_system(void){
     //lots of grabs of diff size
-    for(uint64_t i = 2 ; i < 1 << 5; i <<= 1 ){
-        void *a = get_block(i);
-        void *b = get_block(i);
-        printf("%p %p\n", a, b);
-        free_block(a);
-        free_block(b);
-    }
-    TIME_END("Correctness", t);
-
+    printf("Initial state of buddy lists:\n");
     debug_buddy_lists();
 
-    TIME_START("Full Allocate", t);
-    for(uint64_t i = 1 << 5 ; i > 2 ; i >>= 1 ){
-        get_block(i);
-        get_block(i);
-    }
-    TIME_END("Full Allocate", t);
+    printf("\nRequesting a block of 256 pages\n");
+    void* a = get_block(256);
+    debug_buddy_lists();
 
+    printf("\nRequesting 3 block of 34 pages\n");
+    for(uint64_t i = 0 ; i < 3; i++){
+        void *b = get_block(34);
+    }
+    debug_buddy_lists();
+
+    printf("\nFreeing 1 chunk of 256\n");
+    free_block(a);
     debug_buddy_lists();
 }
 
-void eval_slob_allocator(void){
-    size_t list_size = 10000;
-    slob_init(list_size * 3);
-    uint64_t t;
+void show_slob_alloc(void){
+    slob_list_counts();
+    printf("\nMallocing two chunks of 256\n");
 
-    TIME_START("Correctness", t);
-    for(size_t i = 0; i < list_size; i++){
-        void * a = kmalloc(256);
-        void * b = kmalloc(256);
+    void * a = kmalloc(256);
+    void * b = kmalloc(256);
 
-        krealloc(b, 4096);
-        krealloc(a, 1024);
-        krealloc(b, 1024);
-        krealloc(a, 4096);
+    slob_list_counts();
 
-        kfree(b);
-        kfree(a);
-    }
-    TIME_END("Correctness", t);
+    printf("\nReallocing both chunks\n");
+    krealloc(b, 512);
+    krealloc(a, 1024);
+    slob_list_counts();
 
-    debug_slob_lists();
-
-    TIME_START("Full Allocate", t);
-    for(size_t i = 0; i < list_size; i++){
-        kmalloc(256);
-    }
-    for(size_t i = 0; i < list_size; i++){
-        kmalloc(1024);
-    }
-    for(size_t i = 0; i < list_size; i++){
-        kmalloc(4096);
-    }
-    TIME_END("Full Allocate", t);
-
-    debug_slob_lists();
+    printf("\nFreeing chunks\n");
+    kfree(b);
+    kfree(a);
+    slob_list_counts();
 }
-
-
 
 void kernel_start(uint64_t* kernel_ptr, boot_info_t* b_info) {
     int rc;
@@ -210,12 +156,9 @@ void kernel_start(uint64_t* kernel_ptr, boot_info_t* b_info) {
     printf("[|] Largest segment size: %d\n", get_largest_segment_size(b_info->memory_map, b_info->memory_map_size, b_info->memory_map_desc_size) / 1024);
 
     /* Create kernel page table */
-    print_allocator();
-    debug_buddy_lists();
     page_pml_t* kernel_pml = (page_pml_t*) get_block(1);
     clear_page(kernel_pml);
     uint64_t size = get_memory_map_size(b_info->memory_map, b_info->memory_map_size, b_info->memory_map_desc_size);
-    //debug_buddy_lists();
 
     printf("Kernel pml: %p\n", kernel_pml);
     for(uint64_t i = 0; i < size; i += PAGESIZE){
@@ -226,7 +169,9 @@ void kernel_start(uint64_t* kernel_ptr, boot_info_t* b_info) {
     }
 
     /* Map framebuffer into memory */
-    for(uint64_t i  = (uint64_t)b_info->framebuffer; i < (uint64_t)b_info->framebuffer + (1 << 24); i += PAGESIZE){
+    for(uint64_t i  = (uint64_t)b_info->framebuffer; 
+        i < (uint64_t)b_info->framebuffer + (1 << 24); i += PAGESIZE){
+
         if((rc = map_memory(kernel_pml, (void*)i, (void*)i, 0))){
             printf("[!] Failed to map framebuffer! Status(%d)\n", rc);
             halt();
@@ -244,11 +189,6 @@ void kernel_start(uint64_t* kernel_ptr, boot_info_t* b_info) {
     x86_lapic_enable(); //initialize local apic controller
     setup_interrupts((tss_segment_t*) b_info->tss_buffer);
 
-    // run our benchmarks
-    //eval_buddy_system();
-    //eval_slob_allocator();
-
-
     //setup user stuff
     user_pml = (page_pml_t*) get_block(1);
     clear_page(user_pml);
@@ -260,12 +200,13 @@ void kernel_start(uint64_t* kernel_ptr, boot_info_t* b_info) {
     printf("User pml: %p\n", user_pml);
 
     for(uint64_t i = 0 ; i < b_info->user_code_size; i += PAGESIZE){
-        if((rc = map_memory(user_pml, (void*)(0x8000003000 + i), (void*)( (uint64_t)b_info->user_buffer + i), 1))){
+        if((rc = map_memory(user_pml, (void*)(0x8000003000 + i),
+            (void*)( (uint64_t)b_info->user_buffer + i), 1))){
+
             printf("[!] Failed to map user table! Status(%d)\n", rc);
             halt();
         }
     }
-
 
     void* user_stack_ptr = get_block(1);
     if((rc = map_memory(user_pml, (void*)(0x8000001000), user_stack_ptr, 1))){
@@ -275,11 +216,9 @@ void kernel_start(uint64_t* kernel_ptr, boot_info_t* b_info) {
 
     user_stack = (void*) 0x8000002000;
 
-
     printf("[|] Overwriting cr3\n");
     write_cr3((uint64_t)user_pml);
     user_jump((void*)(0x8000003000));
-
 
     HALT("[|] We made it to end of kernel!\n");
 }

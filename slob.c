@@ -1,9 +1,5 @@
 #include <slob.h>
 
-#define SMOL 256
-#define BIG 1024
-#define CHUNKY PAGESIZE
-
 list_t slob_lists[3];
 static size_t slob_sizes[3] = {256, 1024, PAGESIZE};
 
@@ -48,7 +44,7 @@ static void __init_slob_list(void* base_addr, size_t num_pages, slob_type_t slob
 
 
 void slob_init(size_t num_pages){
-    if (num_pages < 3) HALT("Num pages given to slob allocator is less than 3, we got problems \n");
+    if (num_pages < 3) HALT("Num pages given to slob allocator is less than 3. We got problems \n");
     size_t smol_pages = num_pages / 3;
     size_t big_pages = num_pages / 3;
     size_t chunky_pages = num_pages / 3;
@@ -108,13 +104,6 @@ void *kmalloc(size_t size){
     return __slob_alloc(size);
 }
 
-//allocates memory (and zeroes it out like calloc() in libc) through the slab allocator.
-// void *kzalloc(size_t size){
-//     void* addr = __slob_alloc(size);
-//     __builtin_memset(addr, 0, size);
-//     return addr;
-// }
-
 //resize existing allocation.
 void * krealloc(void * addr, size_t size){
     kfree(addr);
@@ -150,7 +139,7 @@ void debug_slob_lists(){
         if(!list_empty(&slob_lists[i])){
             printf("Slob List #%d\n", i);
             printf("List size: %d\n", list_size(&slob_lists[i]));
-            busy_loop();
+            //busy_loop();
             for(e = list_begin(&slob_lists[i]); e != list_end(&slob_lists[i]); e = list_next(e)){
                 blk = list_entry(e, slob_blk_t, elem);
                 printf("slob_blk %d: %p -> size: %d\n", counter++, blk, blk->size);

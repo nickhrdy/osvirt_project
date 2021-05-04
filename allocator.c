@@ -64,7 +64,7 @@ static int init_buddy(void* addr, size_t total_mem_num_pages){
     buddy_block_t* blk;
     size_t remaining_pages = total_mem_num_pages;
     offset = (uint64_t)addr;
-    printf("[+] Buddy are mapping %d pages\n", total_mem_num_pages);
+    // printf("[+]Buddies are mapping %d pages\n", total_mem_num_pages);
     // init all lists
     for (i = 0; i < NUM_BUDDY_LISTS; i++) list_init(&buddy_lists[i]);
 
@@ -159,15 +159,14 @@ void free_block(void* addr){
     if( !(blk = __find_buddy(addr)))
         HALT("[!] Failed to get buddy struct from pool!\n");
 
-    printf("Freeing block (paddr -> %p)\n", addr);
+    //printf("Freeing block (paddr -> %p)\n", addr);
     // add buddy to free list
 
     /* try to find block's buddy */
-    // TODO: Loop this merging process
     size_t list_index = pages_to_buddy_index(blk->size);
-    printf("[?] List index: %d\n", list_index);
+    //printf("[?] List index: %d\n", list_index);
     pair_addr = ((((uint64_t) addr - offset) ^ (1 << (list_index + PAGESHIFT))) + offset);
-    printf("Buddy address is 0x%llx\n", pair_addr);
+    //printf("Buddy address is 0x%llx\n", pair_addr);
 
     // search list for buddy
     for(e  = list_begin(&buddy_lists[list_index]); e != list_end(&buddy_lists[list_index]); e = list_next(e)){
@@ -314,8 +313,8 @@ int init_page_properties(efi_memory_descriptor_t* memory_map, uint64_t memory_ma
 
     size_t num_bitmap_pages = properties_ptr.size * 8 / PAGESIZE + 1;
     num_buddy_pages = largest / PAGESIZE * sizeof(buddy_block_t) / PAGESIZE + 1;
-    printf("Max num buddies: %d\n", largest / PAGESIZE );
-    printf("Num buddy pages: %d\n", num_buddy_pages);
+    // printf("Max num buddies: %d\n", largest / PAGESIZE );
+    // printf("Num buddy pages: %d\n", num_buddy_pages);
     buddy_pool = (buddy_block_t*)(addr + (PAGESIZE * num_bitmap_pages));
     __reserve_pages(addr, num_bitmap_pages); //reserve bitmap
     __reserve_pages(buddy_pool, num_buddy_pages); //reserve buddypool

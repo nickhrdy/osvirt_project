@@ -69,7 +69,6 @@ typedef struct boot_info {
     uint64_t kernel_code_size;
     uint64_t user_code_size;
     uint64_t *tss_buffer;
-    uint64_t *page_table_buffer;
     efi_memory_descriptor_t *memory_map;
     uint64_t memory_map_size;
     uint64_t memory_map_desc_size;

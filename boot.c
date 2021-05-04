@@ -24,7 +24,6 @@ struct boot_info_t {
     uint64_t kernel_code_size;
     uint64_t user_code_size;
     uint64_t* tss_buffer;
-    uint64_t* page_table_buffer;
     void * memory_map;
     uint64_t memory_map_size;
     uint64_t memory_map_desc_size;
@@ -237,9 +236,6 @@ efi_main(EFI_HANDLE imageHandle, EFI_SYSTEM_TABLE *systemTable)
                 }
         }
 
-
-
-
     user_size = 4096 *  256;
     efi_status = uh->Read(uh,&user_size, user_code_baseptr);
     if(EFI_ERROR(efi_status)){
@@ -254,35 +250,13 @@ efi_main(EFI_HANDLE imageHandle, EFI_SYSTEM_TABLE *systemTable)
 
     fb = SetGraphicsMode(1600, 900);
 
-    // // Allocate space for the page table.
-    // EFI_PHYSICAL_ADDRESS base_physical_addr = 0;
-    // efi_status = BootServices->AllocatePages(AllocateAnyPages, EfiRuntimeServicesData, 2064, &base_physical_addr);
-
-    // if (EFI_ERROR(efi_status)) { //Check for errors
-    //     if(efi_status == EFI_OUT_OF_RESOURCES)
-    //         SystemTable->ConOut->OutputString(SystemTable->ConOut,
-    //             L"Error: AllocatePages(): Out of Resources! \r\n");
-    //     else if(efi_status == EFI_INVALID_PARAMETER)
-    //         SystemTable->ConOut->OutputString(SystemTable->ConOut,
-    //             L"Error: AllocatePages(): Invalid Parameter! \r\n");
-    //     else if(efi_status == EFI_NOT_FOUND)
-    //         SystemTable->ConOut->OutputString(SystemTable->ConOut,
-    //             L"Error: AllocatePages(): Not Found! \r\n");
-    //     BootServices->Stall(3 * 1000000); // stall so I can read the errors
-    //     return efi_status;
-    // }
-
-    // Cast pointer to allocated space
-    // uint64_t *base = (unsigned long long *) base_physical_addr;
-    uint64_t *page_table_baseptr = NULL;
-
     UINTN memMapSize = 0;
     EFI_MEMORY_DESCRIPTOR* memoryMap = NULL;
     UINTN mapKey = 0;
     UINTN descriptorSize;
     UINT32 descriptorVersion;
     //fill boot info with what we can
-    struct boot_info_t boot_info = {(unsigned int*)fb, (uint64_t*)user_code_baseptr, (uint64_t) kernel_size, (uint64_t)user_size, (uint64_t*)tss_baseptr, (uint64_t*)page_table_baseptr};
+    struct boot_info_t boot_info = {(unsigned int*)fb, (uint64_t*)user_code_baseptr, (uint64_t) kernel_size, (uint64_t)user_size, (uint64_t*)tss_baseptr};
 
 
 

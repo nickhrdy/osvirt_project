@@ -9,9 +9,8 @@ static char *mem_brk = NULL;        /* points to last byte of heap */
 static char *mem_max_addr = NULL;   /* largest legal heap address */
 
 /*
- *    mem_sbrk - simple model of the sbrk function. Extends the heap
- *    by incr bytes and returns the start address of the new area. In
- *    this model, the heap cannot be shrunk.
+ *    Extends the heap by incr bytes and returns the start address of the new 
+ *    area. The heap cannot be shrunk.
  */
 void *mem_sbrk(int incr)
 {
@@ -139,7 +138,6 @@ static void coalesce(boundary_block_t* cur_block){
         mark_free(cur_block, cur_block->size);
 }
 
-
 /*
  * mem_init - initialize the memory system model
  */
@@ -176,15 +174,13 @@ void * mm_malloc(size_t size){
     if (cur_block == NULL){
         //no fit found grow the heap
         //__syscall1(0, (long)"[|] Extending heap!\n");
-        cur_block = extend_heap(size);//(size_t)(mem_brk - mem_start_brk) * 2);
+        cur_block = extend_heap(size);
         if (cur_block == NULL){
             __syscall1(0, (long)"[!] Failed to extend heap!!\n");
             return NULL;
         }
     }
-    //__syscall1(0, (long)"[|] Splitting in malloc!\n");
     split(cur_block, size);
-    //debug_heap_user();
     return get_payload(cur_block);
 }
 
@@ -205,6 +201,7 @@ void mm_free(void *addr){
     coalesce(cur_block);
 }
 
+/* Debug the heap from user_space */
 void debug_heap_user(){
     PRINT("[?] Debugging user heap...\n");
     boundary_block_t* tmp;
@@ -213,14 +210,15 @@ void debug_heap_user(){
     ptr += TAGSIZE; //move past first fence
 
     tmp = (boundary_block_t*)ptr;
-    PRINTF("Heap (not including first fence) starts at %p\n", tmp);
+    PRINTF("Heap (not including first fence) starts at %p\n", (uint64_t)tmp);
+    
     if (!tmp->free && !tmp->size){
         PRINT("Heap empty\n");
         return;
     }
 
     while(tmp->size){ //print and hop until last fence
-        PRINTF("%p, ", tmp);
+        PRINTF("%p, ", (uint64_t)tmp);
         PRINTF("size: %d, ", tmp->size);
         PRINTF("%d\n", tmp->free);
         ptr += (tmp->size + TAGSIZE * 2);
