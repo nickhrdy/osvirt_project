@@ -1,6 +1,9 @@
 #include <list.h>
 #include <halt.h>
-/* Our doubly linked lists have two header elements: the "head"
+/* list.c and list.h are TAKEN FROM DR. BACK and CS3214
+
+
+    Our doubly linked lists have two header elements: the "head"
    just before the first element and the "tail" just after the
    last element.  The `prev' link of the front header is null, as
    is the `next' link of the back header.  Their other two links

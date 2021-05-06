@@ -18,6 +18,7 @@ typedef struct page_properties {
     page_info_t* info_buffer;
 } page_properties_t;
 
+/* Data for each buddy block, stored in double linked lists*/
 typedef struct buddy_block {
     //start + size
     uint64_t physical_addr; //physical addr of the start of this block
@@ -25,33 +26,40 @@ typedef struct buddy_block {
     list_elem_t elem;
 } buddy_block_t;
 
+/* Walk the memory map and sum the segments to get the total memory map size*/
 uint64_t get_memory_map_size(efi_memory_descriptor_t* memory_map,
                              uint64_t memory_map_size,
                              uint64_t memory_map_desc_size);
 
+/*Find the largest segment of free physical memory */          
+uint64_t get_largest_segment_size(efi_memory_descriptor_t* memory_map, uint64_t memory_map_size, uint64_t memory_map_desc_size);
+
+/*Init for both the naive page frame allocator and the buddy list*/
 int init_page_properties(efi_memory_descriptor_t* memory_map,
                          uint64_t memory_map_size,
                          uint64_t memory_map_desc_size);
 
+/*Allocate pages using the naive page frame allocator*/
 int alloc_page(void* addr);
-
 int alloc_pages(void* addr, size_t num_pages);
 
+/*Free pages using the naive page frame allocator*/
 int free_page(void* addr);
-
 int free_pages(void* addr, size_t num_pages);
 
+/*Allocate the first free page using the naive page frame allocator*/
 void* request_page();
 
+/*Set the contents of a page to 0*/
 void clear_page(void* addr);
 
-void print_allocator();
-
-void print_available_memory();
-uint64_t get_largest_segment_size(efi_memory_descriptor_t* memory_map, uint64_t memory_map_size, uint64_t memory_map_desc_size);
-
+/*ask the buddy system for num_pages*/
 void* get_block(size_t num_pages);
 
+/*free for the buddy system at the given address*/
 void free_block(void* addr);
 
+/*Debugging print outs for naive and buddy allocator*/
+void print_available_memory();
+void print_allocator();
 void debug_buddy_lists();

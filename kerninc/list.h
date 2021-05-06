@@ -1,5 +1,7 @@
 #ifndef __LIST_H
 #define __LIST_H
+
+//list.c and list.h are TAKEN FROM DR. BACK and CS3214
 /* This code is taken from the Pintos education OS.
  * For copyright information, see www.pintos-os.org */
 

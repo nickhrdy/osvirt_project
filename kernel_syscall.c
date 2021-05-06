@@ -52,8 +52,6 @@ long assign_heap(long size){
         map_memory(user_pml, (void*)(base_vaddr + i), (void*)(((char*)user_heap_ptr) + i), 1);
     
     // mem stuff
-    printf("kernel perspective heap start %p\n", user_heap_ptr);
-    printf("[+] SYSCALL: Mapped in %d pages starting at %p\n", size, (void*)base_vaddr);
     return base_vaddr;
 }
 

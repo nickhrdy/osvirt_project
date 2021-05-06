@@ -51,12 +51,10 @@ static boundary_block_t* get_footer(boundary_block_t* cur_block){
     return (boundary_block_t*)(((char*)cur_block) + TAGSIZE + cur_block->size);
 }
 
+/*First fit for block*/
 static boundary_block_t* find_block(size_t size){
     boundary_block_t* cur_block;
     for(cur_block = (boundary_block_t*)mem_start_brk; cur_block != NULL; cur_block = get_next(cur_block)){
-        // __syscall2(3, (long)"[|] Found Cur Block: %p\n", (long)cur_block);
-        // __syscall2(3, (long)"[|] Cur Block size: %llu\n", (long)cur_block->size);
-        // __syscall2(3, (long)"[|] Cur Block free: %llu\n", (long)cur_block->free);
         if (cur_block->free && cur_block->size >= size) return cur_block;
     }
     return NULL;
@@ -78,7 +76,7 @@ static void mark_free(boundary_block_t* cur_block, size_t size){
     get_footer(cur_block)->size = size;
 }
 
-/*call mem_sbrk to make the heap larger*/
+
 boundary_block_t* extend_heap(size_t size){
     size_t to_extend = max(size + 2*TAGSIZE, MIN_BLOCK_SIZE);
     boundary_block_t* new_last_block = (boundary_block_t*)((char*)mem_sbrk(to_extend) - TAGSIZE);
@@ -90,7 +88,7 @@ boundary_block_t* extend_heap(size_t size){
 }
 
 
-//whats left after split is bigger than min block size
+// whats left after split is bigger than min block size
 // whats left = old_size - to_use - 2*TAGSIZE
 // if whats left >= minblocksize > split
 static void split(boundary_block_t* cur_block, int to_use){
@@ -150,8 +148,6 @@ void memlib_init(void)
 
     //initial sbrk call and stick fences in there
     boundary_block_t* initial = (boundary_block_t* )mem_sbrk(MIN_BLOCK_SIZE);
-    // __syscall2(3, (long)"initial return from sbrk: %p\n", (long)initial);
-    // __syscall2(3, (long)"tail location: %p\n", (long)(initial + 1));
     initial[0].size = 0;
     initial[0].free = 0;
     initial[1].size = 0;
@@ -159,7 +155,6 @@ void memlib_init(void)
 }
 
 void * mm_malloc(size_t size){
-    //__syscall2(3, (long)"[|] Mallocing for size: 0x%llx!\n", (long)size);
     if(!mem_max_addr){
         __syscall1(0, (long)"[?] mm_malloc: calling memlib_init!\n");
         memlib_init();
@@ -173,7 +168,6 @@ void * mm_malloc(size_t size){
 
     if (cur_block == NULL){
         //no fit found grow the heap
-        //__syscall1(0, (long)"[|] Extending heap!\n");
         cur_block = extend_heap(size);
         if (cur_block == NULL){
             __syscall1(0, (long)"[!] Failed to extend heap!!\n");

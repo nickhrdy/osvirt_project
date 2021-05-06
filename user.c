@@ -11,6 +11,10 @@
 #define FREE(ptr) mm_free(ptr); SHOW_HEAP()
 #define REALLOC(ptr, sz) mm_realloc(ptr, sz); SHOW_HEAP()
 
+
+/*
+ * Small test for the correctness of our malloc implementations
+ */
 void malloc_test(void){
     __syscall1(0, (long)"\nMallocing two chunks of 256 bytes...\n");
     void * a = mm_malloc(256);
@@ -27,6 +31,9 @@ void malloc_test(void){
     debug_heap_user();
 }
 
+/*
+ * Currently the user just evaluates the correctness of our malloc implementation
+ */
 void user_start(void) {
     __syscall1(0, (long)"\n\n---USER---\n\n");
     malloc_test();

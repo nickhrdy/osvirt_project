@@ -34,7 +34,6 @@ static void __init_slob_list(void* base_addr, size_t num_pages, slob_type_t slob
     }
 
     for(i = addr; i < addr + (num_pages * PAGESIZE); i += slob_sizes[slob_type]){
-        //printf("%p\n", i);
         blk = (slob_blk_t*)i;
         blk->size = slob_sizes[slob_type];
         list_push_back(list, &blk->elem);
