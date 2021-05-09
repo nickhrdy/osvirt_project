@@ -131,8 +131,8 @@ void show_slob_alloc(void){
     slob_list_counts();
 
     printf("\nReallocing both chunks\n");
-    krealloc(b, 512);
-    krealloc(a, 1024);
+    b = krealloc(b, 512);
+    a = krealloc(a, 1024);
     slob_list_counts();
 
     printf("\nFreeing chunks\n");
@@ -187,6 +187,9 @@ void kernel_start(uint64_t* kernel_ptr, boot_info_t* b_info) {
 
     x86_lapic_enable(); //initialize local apic controller
     setup_interrupts((tss_segment_t*) b_info->tss_buffer);
+
+    // slob_init(50);
+    // show_slob_alloc();
 
     //setup user stuff
     user_pml = (page_pml_t*) get_block(1);

@@ -29,7 +29,7 @@ static void __init_slob_list(void* base_addr, size_t num_pages, slob_type_t slob
         case LARGE:
             large_slob_bounds[0] = base_addr;
             large_slob_bounds[1] = base_addr + num_pages * PAGESIZE;
-        break; 
+        break;
         default:;
     }
 
@@ -38,7 +38,6 @@ static void __init_slob_list(void* base_addr, size_t num_pages, slob_type_t slob
         blk->size = slob_sizes[slob_type];
         list_push_back(list, &blk->elem);
     }
-    busy_loop();
 }
 
 
@@ -48,7 +47,7 @@ void slob_init(size_t num_pages){
     size_t big_pages = num_pages / 3;
     size_t chunky_pages = num_pages / 3;
     void* addr;
-    // initalize free lists 
+    // initalize free lists
     //loop through each free list, adding all blocks to respective list
     if (! (addr = get_block(smol_pages))) HALT("slob_init: Failed to alloc small slob list");
     __init_slob_list(addr, smol_pages, SMALL);
