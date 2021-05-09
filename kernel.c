@@ -23,8 +23,6 @@ void *pg_fault_hdl_ptr; /*page_fault exception handler; set in kernel_entry.S*/
 void *timer_hdl_ptr; /*timer handler; set in kernel_entry.S*/
 void *gp_hdl_ptr; /*general protection handler; set in kernel_entry.S*/
 static gate_descriptor_t idt[256] __attribute__((aligned(16))); // IDT table
-page_pte_t* faulting_page; //pointer to page we will purposefully fault on
-uint64_t* replacement_page; // page to replace `faulting_page`
 page_pml_t* user_pml;
 extern uint64_t* time_ptr;
 
@@ -114,7 +112,7 @@ void show_buddy_system(void){
 
     printf("\nRequesting 3 block of 34 pages\n");
     for(uint64_t i = 0 ; i < 3; i++){
-        void *b = get_block(34);
+        get_block(34);
     }
     debug_buddy_lists();
 
@@ -149,6 +147,7 @@ void kernel_start(uint64_t* kernel_ptr, boot_info_t* b_info) {
     fb_init(b_info->framebuffer, 1600, 900);
     init_page_properties(b_info->memory_map, b_info->memory_map_size, b_info->memory_map_desc_size);
 
+    //reserve space used by kernel code and framebuffer
     printf("[|] Kernel code size: %d b // %d pg\n", b_info->kernel_code_size, b_info->kernel_code_size / PAGESIZE + 1);
     rc = alloc_pages(kernel_ptr, b_info->kernel_code_size / PAGESIZE + 1);
     printf("[|] Alloc_pages returned %d\n", rc);
@@ -169,7 +168,7 @@ void kernel_start(uint64_t* kernel_ptr, boot_info_t* b_info) {
     }
 
     /* Map framebuffer into memory */
-    for(uint64_t i  = (uint64_t)b_info->framebuffer; 
+    for(uint64_t i  = (uint64_t)b_info->framebuffer;
         i < (uint64_t)b_info->framebuffer + (1 << 24); i += PAGESIZE){
 
         if((rc = map_memory(kernel_pml, (void*)i, (void*)i, 0))){
